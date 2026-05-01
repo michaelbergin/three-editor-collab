@@ -1,6 +1,0 @@
----
-description: Keyword trigger for the #implements pipeline. Always loaded, minimal cost.
-alwaysApply: true
----
-
-If the user's message contains `#implements`, immediately read `.cursor/rules/pipeline.mdc` in full and follow every instruction in it before doing anything else.

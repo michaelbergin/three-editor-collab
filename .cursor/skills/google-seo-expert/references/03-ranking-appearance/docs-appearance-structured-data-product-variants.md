@@ -1,3 +1,0 @@
-# Wool winter coat
-
----
