@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Generated Three.js editor runtime assets
+# Recreate with: yarn sync:three-assets
+public/build/
+public/examples/
+public/vendor/
+public/files/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
