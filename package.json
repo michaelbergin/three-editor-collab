@@ -5,9 +5,11 @@
   "packageManager": "yarn@1.22.22",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/sync-three-assets.mjs",
     "dev": "vite",
     "build": "yarn typecheck && vite build",
     "lint": "eslint .",
+    "sync:three-assets": "node scripts/sync-three-assets.mjs",
     "test": "jest",
     "test:watch": "jest --watch",
     "typecheck": "tsc -b",
@@ -21,7 +23,9 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwind-merge": "^3.5.0",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "three-gpu-pathtracer": "0.0.23",
+    "three-mesh-bvh": "0.7.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
