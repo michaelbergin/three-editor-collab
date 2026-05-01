@@ -1,12 +1,13 @@
 import { UIPanel, UIText, UIRow, UIInput } from './libs/ui.js';
 
 import { RemoveObjectCommand } from './commands/RemoveObjectCommand.js';
+import { isKeyboardEventFromEditable, isMacOS } from './KeyboardShortcuts.js';
 
 function SidebarSettingsShortcuts( editor ) {
 
 	const strings = editor.strings;
 
-	const IS_MAC = navigator.platform.toUpperCase().indexOf( 'MAC' ) >= 0;
+	const IS_MAC = isMacOS();
 
 	function isValidKeyBinding( key ) {
 
@@ -96,6 +97,8 @@ function SidebarSettingsShortcuts( editor ) {
 	}
 
 	document.addEventListener( 'keydown', function ( event ) {
+
+		if ( isKeyboardEventFromEditable( event ) ) return;
 
 		switch ( event.key.toLowerCase() ) {
 

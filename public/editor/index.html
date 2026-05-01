@@ -67,6 +67,7 @@
 			import { Player } from './js/Player.js';
 			import { Sidebar } from './js/Sidebar.js';
 			import { Menubar } from './js/Menubar.js';
+			import { CommandPalette } from './js/CommandPalette.js';
 			import { Resizer } from './js/Resizer.js';
 			import { AnimationResizer } from './js/AnimationResizer.js';
 			import { Animation } from './js/Animation.js';
@@ -88,7 +89,9 @@
 			const viewport = new Viewport( editor );
 			document.body.appendChild( viewport.dom );
 
-			const toolbar = new Toolbar( editor );
+			const commandPalette = new CommandPalette( editor );
+
+			const toolbar = new Toolbar( editor, commandPalette );
 			document.body.appendChild( toolbar.dom );
 
 			const script = new Script( editor );
@@ -102,6 +105,8 @@
 
 			const menubar = new Menubar( editor );
 			document.body.appendChild( menubar.dom );
+
+			document.body.appendChild( commandPalette.dom );
 
 			const resizer = new Resizer( editor );
 			document.body.appendChild( resizer.dom );

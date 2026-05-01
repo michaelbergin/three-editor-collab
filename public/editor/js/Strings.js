@@ -538,6 +538,7 @@ function Strings( config ) {
 			'menubar/help': 'Help',
 			'menubar/help/source_code': 'Source Code',
 			'menubar/help/icons': 'Icon Pack',
+			'menubar/help/keyboard_shortcuts': 'Keyboard Shortcuts',
 			'menubar/help/about': 'About',
 			'menubar/help/manual': 'Manual',
 
@@ -827,6 +828,29 @@ function Strings( config ) {
 			'sidebar/settings/shortcuts/scale': 'Scale',
 			'sidebar/settings/shortcuts/undo': 'Undo',
 			'sidebar/settings/shortcuts/focus': 'Focus',
+
+				'commandPalette/title': 'Command Palette',
+				'commandPalette/search': 'Search commands',
+			'commandPalette/searchAdd': 'Search Add commands',
+			'commandPalette/searchTransform': 'Search Transform tools',
+			'commandPalette/empty': 'No matching commands',
+			'commandPalette/footer': 'Enter to open - Esc to close - Tab to switch category',
+			'commandPalette/footerAdd': 'Enter to add - Esc for main palette - Tab to switch category',
+			'commandPalette/footerTransform': 'Enter to activate - Esc for main palette',
+			'commandPalette/back': 'Back',
+			'commandPalette/category/all': 'All',
+			'commandPalette/category/general': 'General',
+			'commandPalette/category/tools': 'Tools',
+			'commandPalette/category/menus': 'Menus',
+			'commandPalette/group/transform': 'Transform Tools',
+
+			'keyboard/shortcuts/title': 'Keyboard Shortcuts',
+			'keyboard/shortcuts/section/command': 'Commands',
+			'keyboard/shortcuts/section/transform': 'Transform',
+			'keyboard/shortcuts/section/edit': 'Edit',
+			'keyboard/shortcuts/commandPalette': 'Command palette',
+			'keyboard/shortcuts/addCommands': 'Add commands',
+			'keyboard/shortcuts/showShortcuts': 'Show keyboard shortcuts',
 
 			'sidebar/history': 'History',
 			'sidebar/history/clear': 'Clear',
@@ -2584,7 +2608,7 @@ function Strings( config ) {
 
 		getKey: function ( key ) {
 
-			return values[ language ][ key ] || '???';
+			return values[ language ][ key ] || values.en[ key ] || '???';
 
 		}
 
