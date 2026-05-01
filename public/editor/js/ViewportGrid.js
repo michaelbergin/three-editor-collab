@@ -201,12 +201,14 @@ export function computeViewportLayout(
 		},
 	];
 
-	let x = MINIMIZED_VIEWPORT_INSET;
-	let y = Math.max( MINIMIZED_VIEWPORT_INSET, H - MINIMIZED_VIEWPORT_HEIGHT - MINIMIZED_VIEWPORT_INSET );
 	const miniW = Math.min(
 		MINIMIZED_VIEWPORT_WIDTH,
 		Math.max( 72, W - MINIMIZED_VIEWPORT_INSET * 2 ),
 	);
+	const minimizedCount = Math.max( 0, viewports.length - 1 );
+	const minimizedWidth = minimizedCount * miniW + Math.max( 0, minimizedCount - 1 ) * MINIMIZED_VIEWPORT_GAP;
+	let x = Math.max( MINIMIZED_VIEWPORT_INSET, Math.round( ( W - minimizedWidth ) / 2 ) );
+	let y = MINIMIZED_VIEWPORT_INSET;
 
 	for ( const viewport of viewports ) {
 
