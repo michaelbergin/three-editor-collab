@@ -1451,3 +1451,77 @@ hr {
 	}
 
 }
+
+/* ── Multi-viewport overlay ───────────────────────── */
+
+.viewport-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.viewport-chrome {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+
+.viewport-chrome--active {
+  border-color: rgba(52, 211, 153, 0.7);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25);
+}
+
+.viewport-chrome-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  pointer-events: auto;
+}
+
+.viewport-chrome-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  user-select: none;
+}
+
+.viewport-chrome-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: auto;
+}
+
+.viewport-chrome-close:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.viewport-resize-handle {
+  position: absolute;
+  z-index: 10;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.viewport-resize-handle--vertical {
+  cursor: col-resize;
+}
+
+.viewport-resize-handle--horizontal {
+  cursor: row-resize;
+}

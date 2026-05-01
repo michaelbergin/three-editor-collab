@@ -15,6 +15,19 @@ module.exports = {
       'ts-jest',
       {
         tsconfig: '<rootDir>/tsconfig.test.json',
+        diagnostics: {
+          ignoreCodes: [7016, 7006],
+        },
+      },
+    ],
+    '^.+/public/editor/js/.+\\.js$': [
+      'ts-jest',
+      {
+        tsconfig: '<rootDir>/tsconfig.test.json',
+        allowJs: true,
+        diagnostics: {
+          ignoreCodes: [7016, 7006],
+        },
       },
     ],
   },

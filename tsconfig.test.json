@@ -1,6 +1,7 @@
 {
   "extends": "./tsconfig.app.json",
   "compilerOptions": {
+    "allowJs": true,
     "allowImportingTsExtensions": false,
     "erasableSyntaxOnly": false,
     "module": "CommonJS",

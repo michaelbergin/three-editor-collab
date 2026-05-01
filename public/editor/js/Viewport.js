@@ -21,10 +21,305 @@ import { ColorEnvironment } from 'three/addons/environments/ColorEnvironment.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { ViewportPathtracer } from './Viewport.Pathtracer.js';
 
+import { createViewportStore } from './ViewportState.js';
+import { computeViewportGrid } from './ViewportGrid.js';
+import { createMultiViewportOverlay } from './MultiViewportOverlay.js';
+
 function Viewport( editor ) {
 
 	const selector = editor.selector;
 	const signals = editor.signals;
+
+	const vpStore = createViewportStore();
+	editor.viewportStore = vpStore;
+
+	const vpCameras = new Map();
+
+	let multiViewportOverlay = null;
+
+	function safeViewportDim( n ) {
+
+		if ( ! Number.isFinite( n ) || n <= 0 ) {
+
+			return Number.EPSILON;
+
+		}
+
+		return n;
+
+	}
+
+	function syncViewportCameraProjection( cam, rect ) {
+
+		const w = safeViewportDim( rect.width );
+		const h = safeViewportDim( rect.height );
+
+		if ( cam.isPerspectiveCamera ) {
+
+			cam.aspect = w / h;
+			cam.updateProjectionMatrix();
+
+		} else if ( cam.isOrthographicCamera ) {
+
+			const a = w / h;
+			const frustumSize = 10;
+			const halfH = frustumSize / 2;
+			const halfW = halfH * a;
+			cam.left = - halfW;
+			cam.right = halfW;
+			cam.top = halfH;
+			cam.bottom = - halfH;
+			cam.updateProjectionMatrix();
+
+		}
+
+	}
+
+	function createOrthoViewportCamera( type ) {
+
+		const cam = new THREE.OrthographicCamera( - 1, 1, 1, - 1, 0.1, 100 );
+
+		if ( type === 'top' ) {
+
+			cam.position.set( 0, 10, 0 );
+			cam.up.set( 0, 0, - 1 );
+
+		} else if ( type === 'left' ) {
+
+			cam.position.set( - 10, 0, 0 );
+			cam.up.set( 0, 1, 0 );
+
+		} else {
+
+			cam.position.set( 10, 0, 0 );
+			cam.up.set( 0, 1, 0 );
+
+		}
+
+		cam.lookAt( 0, 0, 0 );
+		return cam;
+
+	}
+
+	function disposeOwnedViewportCamera( cam ) {
+
+		if ( cam === undefined || cam === null ) {
+
+			return;
+
+		}
+
+		if ( cam === editor.viewportCamera || cam === editor.camera ) {
+
+			return;
+
+		}
+
+		if ( typeof cam.dispose === 'function' ) {
+
+			cam.dispose();
+
+		}
+
+	}
+
+	function syncViewportCameras() {
+
+		const s = vpStore.getState();
+		const keep = new Set( s.viewports.map( ( v ) => v.id ) );
+
+		vpCameras.set( 'vp-1-perspective', editor.viewportCamera );
+
+		for ( const id of Array.from( vpCameras.keys() ) ) {
+
+			if ( id === 'vp-1-perspective' ) {
+
+				continue;
+
+			}
+
+			if ( ! keep.has( id ) ) {
+
+				disposeOwnedViewportCamera( vpCameras.get( id ) );
+				vpCameras.delete( id );
+
+			}
+
+		}
+
+		for ( const v of s.viewports ) {
+
+			if ( v.id === 'vp-1-perspective' ) {
+
+				continue;
+
+			}
+
+			if ( ! vpCameras.has( v.id ) ) {
+
+				let cam;
+
+				if ( v.type === 'perspective' ) {
+
+					cam = editor.viewportCamera.clone();
+
+				} else {
+
+					cam = createOrthoViewportCamera( v.type );
+
+				}
+
+				vpCameras.set( v.id, cam );
+
+			}
+
+		}
+
+	}
+
+	function findViewportRectAt( clientX, clientY ) {
+
+		const bounds = container.dom.getBoundingClientRect();
+		const x = clientX - bounds.left;
+		const y = clientY - bounds.top;
+		const W = container.dom.offsetWidth;
+		const H = container.dom.offsetHeight;
+		const s = vpStore.getState();
+		const rects = computeViewportGrid(
+			s.viewports.map( ( v ) => v.id ),
+			W,
+			H,
+			s.colFractions,
+			s.rowFractions,
+		);
+
+		for ( const r of rects ) {
+
+			const insideX = x >= r.x && x < r.x + r.width;
+			const insideY = y >= r.y && y < r.y + r.height;
+			if ( insideX && insideY ) {
+
+				return r;
+
+			}
+
+		}
+
+		return null;
+
+	}
+
+	function getViewportConfigById( id ) {
+
+		return vpStore.getState().viewports.find( ( v ) => v.id === id ) ?? null;
+
+	}
+
+	function normalizedCoordsHitInteractiveViewport( normalizedVec2 ) {
+
+		const x = normalizedVec2.x * container.dom.offsetWidth;
+		const y = normalizedVec2.y * container.dom.offsetHeight;
+		const s = vpStore.getState();
+		const rects = computeViewportGrid(
+			s.viewports.map( ( v ) => v.id ),
+			container.dom.offsetWidth,
+			container.dom.offsetHeight,
+			s.colFractions,
+			s.rowFractions,
+		);
+
+		for ( const r of rects ) {
+
+			const insideX = x >= r.x && x < r.x + r.width;
+			const insideY = y >= r.y && y < r.y + r.height;
+			if ( insideX && insideY ) {
+
+				const cam = vpCameras.get( r.id ) ?? editor.viewportCamera;
+				return cam === editor.viewportCamera;
+
+			}
+
+		}
+
+		return false;
+
+	}
+
+	function getInteractiveViewportPointer( normalizedVec2 ) {
+
+		const W = container.dom.offsetWidth;
+		const H = container.dom.offsetHeight;
+		const x = normalizedVec2.x * W;
+		const y = normalizedVec2.y * H;
+		const s = vpStore.getState();
+		const rects = computeViewportGrid(
+			s.viewports.map( ( v ) => v.id ),
+			W,
+			H,
+			s.colFractions,
+			s.rowFractions,
+		);
+
+		for ( const r of rects ) {
+
+			const insideX = x >= r.x && x < r.x + r.width;
+			const insideY = y >= r.y && y < r.y + r.height;
+			if ( insideX && insideY ) {
+
+				const cam = vpCameras.get( r.id ) ?? editor.viewportCamera;
+				if ( cam !== editor.viewportCamera ) {
+
+					return null;
+
+				}
+
+				return new THREE.Vector2(
+					( x - r.x ) / Math.max( r.width, Number.EPSILON ),
+					( y - r.y ) / Math.max( r.height, Number.EPSILON ),
+				);
+
+			}
+
+		}
+
+		return null;
+
+	}
+
+	function routeViewportInput( event ) {
+
+		if ( event.target !== renderer.domElement ) {
+
+			return;
+
+		}
+
+		const hit = findViewportRectAt( event.clientX, event.clientY );
+		if ( ! hit || ! getViewportConfigById( hit.id ) ) {
+
+			return;
+
+		}
+
+		vpStore.dispatch( { type: 'SET_ACTIVE', id: hit.id } );
+
+		const cam = vpCameras.get( hit.id ) ?? editor.viewportCamera;
+		if ( cam !== editor.viewportCamera ) {
+
+			event.preventDefault();
+			event.stopImmediatePropagation();
+
+		}
+
+	}
+
+	syncViewportCameras();
+
+	vpStore.subscribe( function () {
+
+		syncViewportCameras();
+
+	} );
 
 	const container = new UIPanel();
 	container.setId( 'viewport' );
@@ -38,6 +333,8 @@ function Viewport( editor ) {
 	let renderer = null;
 	let pmremGenerator = null;
 	let pathtracer = null;
+
+	let vpInputHandler = null;
 
 	const camera = editor.camera;
 	const scene = editor.scene;
@@ -195,7 +492,20 @@ function Viewport( editor ) {
 
 		if ( onDownPosition.distanceTo( onUpPosition ) === 0 ) {
 
-			const intersects = selector.getPointerIntersects( onUpPosition, camera );
+			if ( ! normalizedCoordsHitInteractiveViewport( onUpPosition ) ) {
+
+				return;
+
+			}
+
+			const pointer = getInteractiveViewportPointer( onUpPosition );
+			if ( pointer === null ) {
+
+				return;
+
+			}
+
+			const intersects = selector.getPointerIntersects( pointer, camera );
 			signals.intersectionsDetected.dispatch( intersects );
 
 			render();
@@ -257,7 +567,20 @@ function Viewport( editor ) {
 		const array = getMousePosition( container.dom, event.clientX, event.clientY );
 		onDoubleClickPosition.fromArray( array );
 
-		const intersects = selector.getPointerIntersects( onDoubleClickPosition, camera );
+		if ( ! normalizedCoordsHitInteractiveViewport( onDoubleClickPosition ) ) {
+
+			return;
+
+		}
+
+		const pointer = getInteractiveViewportPointer( onDoubleClickPosition );
+		if ( pointer === null ) {
+
+			return;
+
+		}
+
+		const intersects = selector.getPointerIntersects( pointer, camera );
 
 		if ( intersects.length > 0 ) {
 
@@ -342,6 +665,14 @@ function Viewport( editor ) {
 
 		if ( renderer !== null ) {
 
+			if ( vpInputHandler !== null ) {
+
+				renderer.domElement.removeEventListener( 'pointerdown', vpInputHandler, true );
+				renderer.domElement.removeEventListener( 'wheel', vpInputHandler, true );
+				vpInputHandler = null;
+
+			}
+
 			renderer.setAnimationLoop( null );
 
 			try {
@@ -357,6 +688,13 @@ function Viewport( editor ) {
 			renderer.dispose();
 
 			container.dom.removeChild( renderer.domElement );
+
+		}
+
+		if ( multiViewportOverlay !== null ) {
+
+			multiViewportOverlay.dispose();
+			multiViewportOverlay = null;
 
 		}
 
@@ -406,6 +744,21 @@ function Viewport( editor ) {
 		}
 
 		container.dom.appendChild( renderer.domElement );
+
+		multiViewportOverlay = createMultiViewportOverlay(
+			container.dom,
+			vpStore,
+			function () {
+
+				return container.dom.getBoundingClientRect();
+
+			},
+		);
+
+		vpInputHandler = routeViewportInput;
+
+		renderer.domElement.addEventListener( 'pointerdown', vpInputHandler, true );
+		renderer.domElement.addEventListener( 'wheel', vpInputHandler, true );
 
 		signals.sceneEnvironmentChanged.dispatch( editor.environmentType );
 
@@ -683,6 +1036,8 @@ function Viewport( editor ) {
 
 	signals.viewportCameraChanged.add( function () {
 
+		syncViewportCameras();
+
 		const viewportCamera = editor.viewportCamera;
 
 		if ( viewportCamera.isPerspectiveCamera || viewportCamera.isOrthographicCamera ) {
@@ -738,6 +1093,12 @@ function Viewport( editor ) {
 
 		renderer.setSize( container.dom.offsetWidth, container.dom.offsetHeight );
 		if ( pathtracer ) pathtracer.setSize( container.dom.offsetWidth, container.dom.offsetHeight );
+
+		if ( multiViewportOverlay !== null ) {
+
+			multiViewportOverlay.sync();
+
+		}
 
 		render();
 
@@ -920,18 +1281,55 @@ function Viewport( editor ) {
 
 		startTime = performance.now();
 
-		renderer.setViewport( 0, 0, container.dom.offsetWidth, container.dom.offsetHeight );
-		renderer.render( scene, editor.viewportCamera );
+		syncViewportCameras();
 
-		if ( camera === editor.viewportCamera ) {
+		const W = container.dom.offsetWidth;
+		const H = container.dom.offsetHeight;
+		const s = vpStore.getState();
+		const rects = computeViewportGrid(
+			s.viewports.map( function ( v ) {
 
-			renderer.autoClear = false;
-			if ( grid.visible === true ) renderer.render( grid, camera );
-			if ( sceneHelpers.visible === true ) renderer.render( sceneHelpers, camera );
-			if ( renderer.xr.isPresenting !== true ) viewHelper.render( renderer );
-			renderer.autoClear = true;
+				return v.id;
+
+			} ),
+			W,
+			H,
+			s.colFractions,
+			s.rowFractions,
+		);
+
+		renderer.setScissorTest( true );
+		vpCameras.set( 'vp-1-perspective', editor.viewportCamera );
+
+		for ( let ri = 0; ri < rects.length; ri ++ ) {
+
+			const rect = rects[ ri ];
+			const cam = vpCameras.get( rect.id ) ?? editor.viewportCamera;
+			const yGl = H - rect.y - rect.height;
+
+			syncViewportCameraProjection( cam, rect );
+
+			renderer.setViewport( rect.x, yGl, rect.width, rect.height );
+			renderer.setScissor( rect.x, yGl, rect.width, rect.height );
+			renderer.clear( true, true, true );
+			renderer.render( scene, cam );
+
+			if ( camera === editor.viewportCamera && cam === editor.viewportCamera ) {
+
+				renderer.setViewport( rect.x, yGl, rect.width, rect.height );
+				renderer.setScissor( rect.x, yGl, rect.width, rect.height );
+				renderer.autoClear = false;
+				if ( grid.visible === true ) renderer.render( grid, cam );
+				if ( sceneHelpers.visible === true ) renderer.render( sceneHelpers, cam );
+				if ( renderer.xr.isPresenting !== true ) viewHelper.render( renderer );
+				renderer.autoClear = true;
+
+			}
 
 		}
+
+		renderer.setScissorTest( false );
+		renderer.setViewport( 0, 0, W, H );
 
 		endTime = performance.now();
 		editor.signals.sceneRendered.dispatch( endTime - startTime );

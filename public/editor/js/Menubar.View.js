@@ -1,5 +1,7 @@
 import { UIHorizontalRule, UIPanel, UIRow } from './libs/ui.js';
 
+import { MultiViewportManager } from './MultiViewportManager.js';
+
 function MenubarView( editor ) {
 
 	const signals = editor.signals;
@@ -97,6 +99,9 @@ function MenubarView( editor ) {
 	//
 
 	options.add( new UIHorizontalRule() );
+
+	options.add( new UIHorizontalRule() );
+	options.add( MultiViewportManager( editor ) );
 
 	// Fullscreen
 
