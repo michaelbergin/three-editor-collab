@@ -282,11 +282,11 @@ export function createViewportChrome( initialProps ) {
 
 	}
 
-	function syncMenuOptions( p ) {
+	function syncMenuOptions( p, typeOptions ) {
 
 		menu.textContent = '';
 
-		for ( const option of p.typeOptions ) {
+		for ( const option of typeOptions ) {
 
 			const item = document.createElement( 'button' );
 			item.type = 'button';
@@ -332,6 +332,8 @@ export function createViewportChrome( initialProps ) {
 
 	function paint( p ) {
 
+		const typeOptions = Array.isArray( p.typeOptions ) ? p.typeOptions : [];
+
 		dom.dataset.viewportId = p.id;
 		dom.dataset.active = p.isActive ? 'true' : 'false';
 		dom.dataset.maximized = p.isMaximized ? 'true' : 'false';
@@ -339,10 +341,10 @@ export function createViewportChrome( initialProps ) {
 		dom.classList.toggle( 'viewport-chrome--active', p.isActive );
 		dom.classList.toggle( 'viewport-chrome--maximized', p.isMaximized );
 		dom.classList.toggle( 'viewport-chrome--minimized', p.isMinimized );
-		labelText.textContent = p.typeOptions.find( ( option ) => option.value === p.type )?.label ?? p.label;
+		labelText.textContent = typeOptions.find( ( option ) => option.value === p.type )?.label ?? p.label;
 		labelButton.title = `View: ${ labelText.textContent }`;
 		labelButton.setAttribute( 'aria-label', `Viewport view: ${ labelText.textContent }` );
-		syncMenuOptions( p );
+		syncMenuOptions( p, typeOptions );
 		syncMinimizeButton( p.isMaximized );
 		syncCloseButton( p.canClose );
 		applyChromeGeometry( dom, p.rect );
@@ -379,4 +381,3 @@ export function createViewportChrome( initialProps ) {
 	};
 
 }
-

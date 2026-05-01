@@ -594,8 +594,8 @@ hr {
 
 	#toolbar .Toolbar-button {
 		height: 32px;
-		min-width: 34px;
-		padding: 0 10px;
+		width: 34px;
+		padding: 0;
 		border: 0;
 		border-radius: 6px;
 		background: transparent;
@@ -603,10 +603,7 @@ hr {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 7px;
 		font-family: inherit;
-		font-size: 11px;
-		font-weight: 600;
 		line-height: 1;
 		cursor: pointer;
 	}
@@ -616,6 +613,12 @@ hr {
 	#toolbar .Toolbar-button[data-open="true"] {
 		background: #fff;
 		color: #1f6feb;
+	}
+
+	#toolbar .Toolbar-button svg {
+		width: 16px;
+		height: 16px;
+		flex: 0 0 16px;
 	}
 
 	#toolbar .Toolbar-buttonIcon {
@@ -631,10 +634,6 @@ hr {
 			width: 16px;
 			height: 16px;
 		}
-
-	#toolbar .Toolbar-buttonLabel {
-		white-space: nowrap;
-	}
 
 	#toolbar .ViewportControls--docked {
 		display: flex;
@@ -694,10 +693,20 @@ hr {
 		align-items: center;
 		gap: 4px;
 		padding: 3px;
+		max-width: 310px;
+		flex-wrap: wrap;
 		background: rgba(238, 238, 238, 0.96);
 		border: 1px solid rgba(0, 0, 0, 0.14);
 		border-radius: 8px;
 		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+	}
+
+	#toolbar .Toolbar-flyout[data-category="camera"],
+	#toolbar .Toolbar-flyout[data-category="general"],
+	#toolbar .Toolbar-flyout[data-category="light"],
+	#toolbar .Toolbar-flyout[data-category="transform"] {
+		max-width: none;
+		flex-wrap: nowrap;
 	}
 
 	#toolbar .Toolbar-flyout[hidden] {
@@ -889,14 +898,6 @@ hr {
 		transform: translateX(-50%);
 		bottom: 330px;
 	}
-
-		#toolbar .Toolbar-button {
-			padding: 0 9px;
-		}
-
-		#toolbar .Toolbar-buttonLabel {
-			display: none;
-		}
 
 		#toolbar .ViewportControls--docked {
 			padding-left: 5px;
