@@ -579,29 +579,81 @@ hr {
 	left: calc(50% - 175px);
 	transform: translateX(-50%);
 	bottom: 56px;
-	height: 32px;
-	background: #eee;
-	text-align: center;
+	min-height: 36px;
+	background: rgba(238, 238, 238, 0.96);
 	display: flex;
 	align-items: center;
-	gap: 2px;
-	border-radius: 6px;
-	border: 3px solid #eee;
-	overflow: hidden;
+	gap: 4px;
+	padding: 3px;
+	border-radius: 8px;
+	border: 1px solid rgba(0, 0, 0, 0.14);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+	overflow: visible;
+	z-index: 30;
 }
 
-	#toolbar .Button, #toolbar .Input {
+	#toolbar .Toolbar-button {
 		height: 32px;
-		border-radius: 4px;
+		min-width: 34px;
+		padding: 0 10px;
+		border: 0;
+		border-radius: 6px;
+		background: transparent;
+		color: #555;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		gap: 7px;
+		font-family: inherit;
+		font-size: 11px;
+		font-weight: 600;
+		line-height: 1;
+		cursor: pointer;
 	}
 
-		#toolbar .Button img {
+	#toolbar .Toolbar-button:hover,
+	#toolbar .Toolbar-button[data-active="true"],
+	#toolbar .Toolbar-button[data-open="true"] {
+		background: #fff;
+		color: #1f6feb;
+	}
+
+	#toolbar .Toolbar-buttonIcon {
+		width: 16px;
+		height: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex: 0 0 16px;
+	}
+
+		#toolbar .Toolbar-buttonIcon svg {
 			width: 16px;
-			opacity: 0.5;
+			height: 16px;
 		}
+
+	#toolbar .Toolbar-buttonLabel {
+		white-space: nowrap;
+	}
+
+	#toolbar .Toolbar-flyout {
+		position: absolute;
+		left: 50%;
+		bottom: calc(100% + 8px);
+		transform: translateX(-50%);
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding: 3px;
+		background: rgba(238, 238, 238, 0.96);
+		border: 1px solid rgba(0, 0, 0, 0.14);
+		border-radius: 8px;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+	}
+
+	#toolbar .Toolbar-flyout[hidden] {
+		display: none;
+	}
 
 .Outliner {
 	color: #444;
@@ -708,6 +760,14 @@ hr {
 		transform: translateX(-50%);
 		bottom: 330px;
 	}
+
+		#toolbar .Toolbar-button {
+			padding: 0 9px;
+		}
+
+		#toolbar .Toolbar-buttonLabel {
+			display: none;
+		}
 
 	#animation {
 		display: none !important;
@@ -818,12 +878,24 @@ hr {
 		}
 
 	#toolbar {
-		background-color: #111;
-		border-color: #111;
+		background: rgba(17, 17, 17, 0.96);
+		border-color: #2c2c2c;
 	}
 
-		#toolbar img {
-			filter: invert(1);
+		#toolbar .Toolbar-button {
+			color: #aaa;
+		}
+
+		#toolbar .Toolbar-button:hover,
+		#toolbar .Toolbar-button[data-active="true"],
+		#toolbar .Toolbar-button[data-open="true"] {
+			background: #1f1f1f;
+			color: #7bb2ff;
+		}
+
+		#toolbar .Toolbar-flyout {
+			background: rgba(17, 17, 17, 0.96);
+			border-color: #2c2c2c;
 		}
 
 	.Outliner {
@@ -955,4 +1027,427 @@ hr {
 [draggable="true"] {
 	transform: translate(0, 0);
 	z-index: 0;
+}
+
+/* Command Palette */
+
+.CommandIcon {
+	display: block;
+	width: 18px;
+	height: 18px;
+	pointer-events: none;
+}
+
+.CommandPalette {
+	position: fixed;
+	inset: 0;
+	z-index: 90;
+	display: flex;
+	align-items: flex-start;
+	justify-content: center;
+	padding-top: min(12vh, 96px);
+	color: #333;
+}
+
+.CommandPalette[hidden] {
+	display: none;
+}
+
+.CommandPalette-backdrop {
+	position: absolute;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.CommandPalette-panel {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	width: min(820px, calc(100vw - 28px));
+	max-height: min(680px, calc(100vh - 48px));
+	border: 1px solid #d4d4d4;
+	background: #f4f4f4;
+	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+
+.CommandPalette-searchRow {
+	display: grid;
+	grid-template-columns: 42px 1fr;
+	align-items: center;
+	min-height: 50px;
+	border-bottom: 1px solid #ddd;
+}
+
+.CommandPalette-searchRow[data-has-back="true"] {
+	grid-template-columns: 42px 42px 1fr;
+}
+
+.CommandPalette-backButton {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 42px;
+	height: 50px;
+	border: 0;
+	background: transparent;
+	color: #777;
+	cursor: pointer;
+}
+
+.CommandPalette-backButton[hidden] {
+	display: none;
+}
+
+.CommandPalette-backButton:hover {
+	color: #333;
+	background: #e4e4e4;
+}
+
+.CommandPalette-searchIcon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #777;
+}
+
+.CommandPalette-search {
+	width: 100%;
+	min-width: 0;
+	height: 50px;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	font-size: 15px;
+	outline: none;
+}
+
+.CommandPalette-content {
+	display: grid;
+	grid-template-columns: 190px minmax(0, 1fr);
+	min-height: 0;
+	overflow: hidden;
+}
+
+.CommandPalette-categories {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 10px;
+	border-right: 1px solid #ddd;
+	overflow: auto;
+}
+
+.CommandPalette-category,
+.CommandPalette-command {
+	font: inherit;
+	color: inherit;
+	text-align: left;
+	border: 0;
+	background: transparent;
+	cursor: pointer;
+}
+
+.CommandPalette-category {
+	display: grid;
+	grid-template-columns: 24px minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 8px;
+	min-height: 36px;
+	padding: 0 8px;
+}
+
+.CommandPalette-categoryIcon,
+.CommandPalette-commandIcon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #777;
+}
+
+.CommandPalette-category span:nth-child(2) {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.CommandPalette-categoryCount {
+	color: #999;
+	font-size: 11px;
+}
+
+.CommandPalette-category:hover,
+.CommandPalette-category[data-active="true"] {
+	background: #e4e4e4;
+}
+
+.CommandPalette-category[data-active="true"] .CommandPalette-categoryIcon,
+.CommandPalette-category[data-active="true"] .CommandPalette-categoryCount {
+	color: #333;
+}
+
+.CommandPalette-resultsPane {
+	display: flex;
+	min-width: 0;
+	min-height: 0;
+	flex-direction: column;
+}
+
+.CommandPalette-heading {
+	padding: 12px 14px 8px;
+	color: #777;
+	font-size: 11px;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.CommandPalette-results {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	gap: 8px;
+	min-height: 0;
+	padding: 0 14px 14px;
+	overflow: auto;
+}
+
+.CommandPalette-command {
+	display: grid;
+	grid-template-columns: 34px minmax(0, 1fr) 20px;
+	align-items: center;
+	gap: 10px;
+	min-height: 58px;
+	padding: 8px;
+	border: 1px solid #ddd;
+	background: #fff;
+}
+
+.CommandPalette-commandIcon {
+	width: 34px;
+	height: 34px;
+	background: #f1f1f1;
+}
+
+.CommandPalette-commandText {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.CommandPalette-commandLabel,
+.CommandPalette-commandMeta {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.CommandPalette-commandLabel {
+	color: #444;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.CommandPalette-commandMeta {
+	color: #999;
+	font-size: 10px;
+}
+
+.CommandPalette-commandAffordance {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: #999;
+}
+
+.CommandPalette-command:hover,
+.CommandPalette-command[data-active="true"] {
+	border-color: #08f;
+	background: #08f;
+	color: #fff;
+}
+
+.CommandPalette-command:hover .CommandPalette-commandIcon,
+.CommandPalette-command:hover .CommandPalette-commandAffordance,
+.CommandPalette-command[data-active="true"] .CommandPalette-commandIcon {
+	background: rgba(255, 255, 255, 0.18);
+	color: #fff;
+}
+
+.CommandPalette-command[data-active="true"] .CommandPalette-commandAffordance {
+	color: #fff;
+}
+
+.CommandPalette-command:hover .CommandPalette-commandLabel,
+.CommandPalette-command:hover .CommandPalette-commandMeta,
+.CommandPalette-command[data-active="true"] .CommandPalette-commandLabel,
+.CommandPalette-command[data-active="true"] .CommandPalette-commandMeta {
+	color: #fff;
+}
+
+.CommandPalette-empty {
+	padding: 28px 14px 34px;
+	color: #777;
+	font-size: 13px;
+	text-align: center;
+}
+
+.CommandPalette-footer {
+	border-top: 1px solid #ddd;
+	padding: 8px 12px;
+	color: #888;
+	font-size: 11px;
+}
+
+.KeyboardShortcutsDialog-content {
+	width: min(560px, calc(100vw - 28px));
+}
+
+.KeyboardShortcutsDialog-body {
+	display: grid;
+	gap: 18px;
+}
+
+.KeyboardShortcutSection {
+	margin: 0;
+}
+
+.KeyboardShortcutSection-title {
+	margin: 0 0 8px;
+	color: #777;
+	font-size: 11px;
+	text-transform: uppercase;
+}
+
+.KeyboardShortcutRow {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 12px;
+	min-height: 30px;
+	border-top: 1px solid #ddd;
+}
+
+.KeyboardShortcutLabel {
+	overflow: hidden;
+	color: #555;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.KeyboardShortcutBadge {
+	display: inline-flex;
+	align-items: center;
+	min-height: 22px;
+	border: 1px solid #ccc;
+	padding: 0 7px;
+	background: #fff;
+	color: #555;
+	font-size: 11px;
+	white-space: nowrap;
+}
+
+@media all and ( max-width: 600px ) {
+
+	.CommandPalette {
+		align-items: stretch;
+		padding: 12px;
+	}
+
+	.CommandPalette-panel {
+		width: 100%;
+		max-height: 100%;
+	}
+
+	.CommandPalette-content {
+		grid-template-columns: 1fr;
+	}
+
+	.CommandPalette-categories {
+		flex-direction: row;
+		border-right: 0;
+		border-bottom: 1px solid #ddd;
+	}
+
+	.CommandPalette-category {
+		grid-template-columns: 24px auto;
+		flex: 0 0 auto;
+	}
+
+	.CommandPalette-categoryCount {
+		display: none;
+	}
+
+	.CommandPalette-results {
+		grid-template-columns: 1fr;
+	}
+
+}
+
+@media ( prefers-color-scheme: dark ) {
+
+	.CommandPalette {
+		color: #aaa;
+	}
+
+	.CommandPalette-panel {
+		border-color: #2d2d2d;
+		background: #161616;
+	}
+
+	.CommandPalette-searchRow,
+	.CommandPalette-categories,
+	.CommandPalette-footer,
+	.KeyboardShortcutRow {
+		border-color: #292929;
+	}
+
+	.CommandPalette-backButton {
+		color: #777;
+	}
+
+	.CommandPalette-backButton:hover {
+		color: #ddd;
+		background: #252525;
+	}
+
+	.CommandPalette-category:hover,
+	.CommandPalette-category[data-active="true"] {
+		background: #252525;
+	}
+
+	.CommandPalette-category[data-active="true"] .CommandPalette-categoryIcon,
+	.CommandPalette-category[data-active="true"] .CommandPalette-categoryCount {
+		color: #ddd;
+	}
+
+	.CommandPalette-command {
+		border-color: #2a2a2a;
+		background: #202020;
+	}
+
+	.CommandPalette-commandIcon {
+		background: #151515;
+	}
+
+	.CommandPalette-commandLabel,
+	.KeyboardShortcutLabel {
+		color: #ccc;
+	}
+
+	.CommandPalette-commandMeta,
+	.CommandPalette-heading,
+	.CommandPalette-empty,
+	.CommandPalette-footer,
+	.CommandPalette-searchIcon,
+	.CommandPalette-categoryIcon,
+	.CommandPalette-commandAffordance,
+	.KeyboardShortcutSection-title {
+		color: #777;
+	}
+
+	.KeyboardShortcutBadge {
+		border-color: #444;
+		background: #222;
+		color: #bbb;
+	}
+
 }

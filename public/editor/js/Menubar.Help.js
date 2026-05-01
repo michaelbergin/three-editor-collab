@@ -1,5 +1,7 @@
 import { UIPanel, UIRow } from './libs/ui.js';
 
+import { showKeyboardShortcuts } from './KeyboardShortcutsDialog.js';
+
 function MenubarHelp( editor ) {
 
 	const strings = editor.strings;
@@ -50,6 +52,18 @@ function MenubarHelp( editor ) {
 	option.onClick( function () {
 
 		window.open( 'https://threejs.org', '_blank' );
+
+	} );
+	options.add( option );
+
+	// Keyboard Shortcuts
+
+	option = new UIRow();
+	option.setClass( 'option' );
+	option.setTextContent( strings.getKey( 'menubar/help/keyboard_shortcuts' ) );
+	option.onClick( function () {
+
+		showKeyboardShortcuts( editor );
 
 	} );
 	options.add( option );

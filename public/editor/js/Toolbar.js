@@ -1,72 +1,139 @@
-import { UIPanel, UIButton } from './libs/ui.js';
+import { UIPanel } from './libs/ui.js';
+import { createCommandIcon } from './CommandIcons.js';
+import { showKeyboardShortcuts } from './KeyboardShortcutsDialog.js';
 
-function Toolbar( editor ) {
+function createToolbarButton( icon, label, onClick ) {
+
+	const button = document.createElement( 'button' );
+	button.className = 'Toolbar-button';
+	button.type = 'button';
+	button.title = label;
+	button.setAttribute( 'aria-label', label );
+
+	const iconWrap = document.createElement( 'span' );
+	iconWrap.className = 'Toolbar-buttonIcon';
+	iconWrap.appendChild( createCommandIcon( icon ) );
+	button.appendChild( iconWrap );
+
+	const labelWrap = document.createElement( 'span' );
+	labelWrap.className = 'Toolbar-buttonLabel';
+	labelWrap.textContent = label;
+	button.appendChild( labelWrap );
+
+	button.addEventListener( 'click', onClick );
+
+	return button;
+
+}
+
+function Toolbar( editor, commandPalette ) {
 
 	const signals = editor.signals;
 	const strings = editor.strings;
 
 	const container = new UIPanel();
 	container.setId( 'toolbar' );
+	container.dom.classList.add( 'CommandDock' );
 
-	// translate / rotate / scale
+	const transformButton = createToolbarButton( 'move3d', strings.getKey( 'commandPalette/group/transform' ), function ( event ) {
 
-	const translateIcon = document.createElement( 'img' );
-	translateIcon.title = strings.getKey( 'toolbar/translate' );
-	translateIcon.src = 'images/translate.svg';
+		event.stopPropagation();
+		transformFlyout.hidden = ! transformFlyout.hidden;
+		transformButton.dataset.open = String( ! transformFlyout.hidden );
 
-	const translate = new UIButton();
-	translate.dom.className = 'Button selected';
-	translate.dom.appendChild( translateIcon );
-	translate.onClick( function () {
+	} );
+
+	const commandsButton = createToolbarButton( 'command', strings.getKey( 'commandPalette/title' ), function () {
+
+		transformFlyout.hidden = true;
+		transformButton.dataset.open = 'false';
+		commandPalette.openMainMenu();
+
+	} );
+
+	const addButton = createToolbarButton( 'circlePlus', strings.getKey( 'menubar/add' ), function () {
+
+		transformFlyout.hidden = true;
+		transformButton.dataset.open = 'false';
+		commandPalette.openAddMenu();
+
+	} );
+
+	const shortcutsButton = createToolbarButton( 'keyboard', strings.getKey( 'keyboard/shortcuts/title' ), function () {
+
+		transformFlyout.hidden = true;
+		transformButton.dataset.open = 'false';
+		showKeyboardShortcuts( editor );
+
+	} );
+
+	const transformFlyout = document.createElement( 'div' );
+	transformFlyout.className = 'Toolbar-flyout';
+	transformFlyout.hidden = true;
+
+	const translate = createToolbarButton( 'move3d', strings.getKey( 'toolbar/translate' ), function () {
 
 		signals.transformModeChanged.dispatch( 'translate' );
+		transformFlyout.hidden = true;
+		transformButton.dataset.open = 'false';
 
 	} );
-	container.add( translate );
 
-	const rotateIcon = document.createElement( 'img' );
-	rotateIcon.title = strings.getKey( 'toolbar/rotate' );
-	rotateIcon.src = 'images/rotate.svg';
-
-	const rotate = new UIButton();
-	rotate.dom.appendChild( rotateIcon );
-	rotate.onClick( function () {
+	const rotate = createToolbarButton( 'rotate3d', strings.getKey( 'toolbar/rotate' ), function () {
 
 		signals.transformModeChanged.dispatch( 'rotate' );
+		transformFlyout.hidden = true;
+		transformButton.dataset.open = 'false';
 
 	} );
-	container.add( rotate );
 
-	const scaleIcon = document.createElement( 'img' );
-	scaleIcon.title = strings.getKey( 'toolbar/scale' );
-	scaleIcon.src = 'images/scale.svg';
-
-	const scale = new UIButton();
-	scale.dom.appendChild( scaleIcon );
-	scale.onClick( function () {
+	const scale = createToolbarButton( 'scale3d', strings.getKey( 'toolbar/scale' ), function () {
 
 		signals.transformModeChanged.dispatch( 'scale' );
+		transformFlyout.hidden = true;
+		transformButton.dataset.open = 'false';
 
 	} );
-	container.add( scale );
 
-	//
+	transformFlyout.appendChild( translate );
+	transformFlyout.appendChild( rotate );
+	transformFlyout.appendChild( scale );
+
+	container.dom.appendChild( commandsButton );
+	container.dom.appendChild( transformButton );
+	container.dom.appendChild( addButton );
+	container.dom.appendChild( shortcutsButton );
+	container.dom.appendChild( transformFlyout );
+
+	container.dom.addEventListener( 'keydown', function ( event ) {
+
+		if ( event.key !== 'Escape' ) return;
+
+		transformFlyout.hidden = true;
+		transformButton.dataset.open = 'false';
+		transformButton.focus();
+
+	} );
+
+	document.addEventListener( 'click', function ( event ) {
+
+		if ( container.dom.contains( event.target ) ) return;
+
+		transformFlyout.hidden = true;
+		transformButton.dataset.open = 'false';
+
+	} );
 
 	signals.transformModeChanged.add( function ( mode ) {
 
-		translate.dom.classList.remove( 'selected' );
-		rotate.dom.classList.remove( 'selected' );
-		scale.dom.classList.remove( 'selected' );
-
-		switch ( mode ) {
-
-			case 'translate': translate.dom.classList.add( 'selected' ); break;
-			case 'rotate': rotate.dom.classList.add( 'selected' ); break;
-			case 'scale': scale.dom.classList.add( 'selected' ); break;
-
-		}
+		translate.dataset.active = String( mode === 'translate' );
+		rotate.dataset.active = String( mode === 'rotate' );
+		scale.dataset.active = String( mode === 'scale' );
 
 	} );
+
+	translate.dataset.active = 'true';
+	transformButton.dataset.open = 'false';
 
 	return container;
 
