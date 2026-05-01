@@ -20,6 +20,8 @@ public/vendor/
 public/files/
 
 # Editor directories and files
+AGENTS.md
+.cursor/
 .vscode/*
 !.vscode/extensions.json
 .idea

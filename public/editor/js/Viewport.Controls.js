@@ -1,24 +1,68 @@
 import { UIPanel, UISelect } from './libs/ui.js';
+import { createCommandIcon } from './CommandIcons.js';
 
-function ViewportControls( editor ) {
+function createDockedSelectControl( icon, select ) {
+
+	const control = document.createElement( 'label' );
+	control.className = 'ViewportControls-control';
+
+	const iconWrap = document.createElement( 'span' );
+	iconWrap.className = 'Toolbar-buttonIcon';
+	iconWrap.appendChild( createCommandIcon( icon ) );
+	control.appendChild( iconWrap );
+
+	control.appendChild( select.dom );
+
+	return control;
+
+}
+
+function ViewportControls( editor, options = {} ) {
 
 	const signals = editor.signals;
+	const docked = options.docked === true;
 
 	const container = new UIPanel();
-	container.setPosition( 'absolute' );
-	container.setRight( '10px' );
-	container.setTop( '10px' );
+	container.dom.classList.add( 'ViewportControls' );
+
+	if ( docked === true ) {
+
+		container.dom.classList.add( 'ViewportControls--docked' );
+
+	} else {
+
+		container.setPosition( 'absolute' );
+		container.setRight( '10px' );
+		container.setTop( '10px' );
+
+	}
 
 	// camera
 
 	const cameraSelect = new UISelect();
-	cameraSelect.setMarginRight( '10px' );
+	cameraSelect.dom.classList.add( 'ViewportControls-select' );
+	cameraSelect.dom.style.padding = '';
+
+	if ( docked === false ) {
+
+		cameraSelect.setMarginRight( '10px' );
+
+	}
 	cameraSelect.onChange( function () {
 
 		editor.setViewportCamera( this.getValue() );
 
 	} );
-	container.add( cameraSelect );
+
+	if ( docked === true ) {
+
+		container.dom.appendChild( createDockedSelectControl( 'camera', cameraSelect ) );
+
+	} else {
+
+		container.add( cameraSelect );
+
+	}
 
 	signals.cameraAdded.add( update );
 	signals.cameraRemoved.add( update );
@@ -35,14 +79,25 @@ function ViewportControls( editor ) {
 	// shading
 
 	const shadingSelect = new UISelect();
-	shadingSelect.setOptions( { 'realistic': 'realistic', 'solid': 'solid', 'normals': 'normals', 'wireframe': 'wireframe' } );
+	shadingSelect.dom.classList.add( 'ViewportControls-select' );
+	shadingSelect.dom.style.padding = '';
+	shadingSelect.setOptions( { 'realistic': 'Realistic', 'solid': 'Solid', 'normals': 'Normals', 'wireframe': 'Wireframe' } );
 	shadingSelect.setValue( 'solid' );
 	shadingSelect.onChange( function () {
 
 		editor.setViewportShading( this.getValue() );
 
 	} );
-	container.add( shadingSelect );
+
+	if ( docked === true ) {
+
+		container.dom.appendChild( createDockedSelectControl( 'sphere-3d', shadingSelect ) );
+
+	} else {
+
+		container.add( shadingSelect );
+
+	}
 
 	signals.editorCleared.add( function () {
 

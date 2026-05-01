@@ -14,6 +14,7 @@ export const viewportInitialState = {
 		{ id: 'vp-1-perspective', type: 'perspective', typeIndex: 1 },
 	],
 	activeViewportId: 'vp-1-perspective',
+	maximizedViewportId: null,
 	colFractions: [ 1 ],
 	rowFractions: [ 1 ],
 	typeCounters: { ...INITIAL_COUNTERS },
@@ -96,6 +97,7 @@ export function viewportReducer( state, action ) {
 			return {
 				viewports,
 				activeViewportId: id,
+				maximizedViewportId: null,
 				colFractions: makeEqualFractions( cols ),
 				rowFractions: makeEqualFractions( rows ),
 				typeCounters,
@@ -125,10 +127,14 @@ export function viewportReducer( state, action ) {
 				activeViewportId = viewports[ 0 ]?.id ?? null;
 
 			}
+			const maximizedViewportId = state.maximizedViewportId === action.id
+				? null
+				: state.maximizedViewportId;
 
 			return {
 				viewports,
 				activeViewportId,
+				maximizedViewportId,
 				colFractions: makeEqualFractions( cols ),
 				rowFractions: makeEqualFractions( rows ),
 				typeCounters: state.typeCounters,
@@ -145,6 +151,61 @@ export function viewportReducer( state, action ) {
 			}
 
 			return { ...state, activeViewportId: action.id };
+
+		}
+
+		case 'TOGGLE_MAXIMIZED_VIEWPORT': {
+
+			if ( ! state.viewports.some( ( v ) => v.id === action.id ) ) {
+
+				return state;
+
+			}
+
+			return {
+				...state,
+				activeViewportId: action.id,
+				maximizedViewportId: state.maximizedViewportId === action.id ? null : action.id,
+			};
+
+		}
+
+		case 'SET_VIEWPORT_TYPE': {
+
+			let changed = false;
+			const viewports = state.viewports.map( function ( viewport ) {
+
+				if ( viewport.id !== action.id ) {
+
+					return viewport;
+
+				}
+
+				if ( viewport.type === action.viewportType ) {
+
+					return viewport;
+
+				}
+
+				changed = true;
+				return {
+					...viewport,
+					type: action.viewportType,
+				};
+
+			} );
+
+			if ( changed === false ) {
+
+				return state;
+
+			}
+
+			return {
+				...state,
+				viewports,
+				activeViewportId: action.id,
+			};
 
 		}
 
@@ -195,6 +256,7 @@ function cloneInitialState() {
 	return {
 		viewports: viewportInitialState.viewports.map( ( v ) => ( { ...v } ) ),
 		activeViewportId: viewportInitialState.activeViewportId,
+		maximizedViewportId: viewportInitialState.maximizedViewportId,
 		colFractions: [ ...viewportInitialState.colFractions ],
 		rowFractions: [ ...viewportInitialState.rowFractions ],
 		typeCounters: { ...viewportInitialState.typeCounters },

@@ -1,3 +1,0 @@
-# My Beautiful Vacation Rental
-
----

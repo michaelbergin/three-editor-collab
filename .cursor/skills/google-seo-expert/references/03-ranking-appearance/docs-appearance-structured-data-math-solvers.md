@@ -1,3 +1,0 @@
-# An awesome math solver
-
----

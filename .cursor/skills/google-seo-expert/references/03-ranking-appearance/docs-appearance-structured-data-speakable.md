@@ -1,3 +1,0 @@
-# Speakable markup example
-
----

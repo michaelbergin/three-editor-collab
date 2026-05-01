@@ -1,4 +1,8 @@
 const HANDLE_HALF = 3;
+const MINIMIZED_VIEWPORT_WIDTH = 146;
+const MINIMIZED_VIEWPORT_HEIGHT = 34;
+const MINIMIZED_VIEWPORT_GAP = 6;
+const MINIMIZED_VIEWPORT_INSET = 8;
 
 export function makeEqualFractions( count ) {
 
@@ -150,7 +154,100 @@ export function computeViewportGrid(
 
 }
 
-const TYPE_LABEL = {
+export function computeViewportLayout(
+	viewports,
+	containerWidth,
+	containerHeight,
+	colFractions,
+	rowFractions,
+	maximizedViewportId,
+) {
+
+	if ( maximizedViewportId === null || maximizedViewportId === undefined ) {
+
+		return computeViewportGrid(
+			viewports.map( ( viewport ) => viewport.id ),
+			containerWidth,
+			containerHeight,
+			colFractions,
+			rowFractions,
+		);
+
+	}
+
+	const maximizedViewport = viewports.find( ( viewport ) => viewport.id === maximizedViewportId );
+	if ( maximizedViewport === undefined ) {
+
+		return computeViewportGrid(
+			viewports.map( ( viewport ) => viewport.id ),
+			containerWidth,
+			containerHeight,
+			colFractions,
+			rowFractions,
+		);
+
+	}
+
+	const W = Math.round( clampNonNegative( containerWidth ) );
+	const H = Math.round( clampNonNegative( containerHeight ) );
+	const rects = [
+		{
+			id: maximizedViewport.id,
+			x: 0,
+			y: 0,
+			width: W,
+			height: H,
+			maximized: true,
+		},
+	];
+
+	const miniW = Math.min(
+		MINIMIZED_VIEWPORT_WIDTH,
+		Math.max( 72, W - MINIMIZED_VIEWPORT_INSET * 2 ),
+	);
+	const minimizedCount = Math.max( 0, viewports.length - 1 );
+	const minimizedWidth = minimizedCount * miniW + Math.max( 0, minimizedCount - 1 ) * MINIMIZED_VIEWPORT_GAP;
+	let x = Math.max( MINIMIZED_VIEWPORT_INSET, Math.round( ( W - minimizedWidth ) / 2 ) );
+	let y = MINIMIZED_VIEWPORT_INSET;
+
+	for ( const viewport of viewports ) {
+
+		if ( viewport.id === maximizedViewport.id ) {
+
+			continue;
+
+		}
+
+		if ( x + miniW > W - MINIMIZED_VIEWPORT_INSET && x > MINIMIZED_VIEWPORT_INSET ) {
+
+			x = MINIMIZED_VIEWPORT_INSET;
+			y = Math.max(
+				MINIMIZED_VIEWPORT_INSET,
+				y - MINIMIZED_VIEWPORT_HEIGHT - MINIMIZED_VIEWPORT_GAP,
+			);
+
+		}
+
+		rects.push( {
+			id: viewport.id,
+			x,
+			y,
+			width: miniW,
+			height: MINIMIZED_VIEWPORT_HEIGHT,
+			minimized: true,
+		} );
+
+		x += miniW + MINIMIZED_VIEWPORT_GAP;
+
+	}
+
+	return rects;
+
+}
+
+export const VIEWPORT_TYPES = [ 'perspective', 'top', 'left', 'right' ];
+
+export const VIEWPORT_TYPE_LABELS = {
 	perspective: 'Perspective',
 	top: 'Top',
 	left: 'Left',
@@ -160,7 +257,7 @@ const TYPE_LABEL = {
 export function deriveViewportLabel( viewport, allViewports ) {
 
 	const sameType = allViewports.filter( ( v ) => v.type === viewport.type );
-	const base = TYPE_LABEL[ viewport.type ];
+	const base = VIEWPORT_TYPE_LABELS[ viewport.type ];
 	if ( sameType.length <= 1 ) {
 
 		return base;

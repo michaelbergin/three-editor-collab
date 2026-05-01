@@ -1,3 +1,0 @@
-# Non-Alcoholic Piña Colada
-
----

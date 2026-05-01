@@ -1,3 +1,0 @@
-# Angry Birds
-
----

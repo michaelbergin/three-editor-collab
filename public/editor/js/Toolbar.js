@@ -1,6 +1,7 @@
 import { UIPanel } from './libs/ui.js';
 import { createCommandIcon } from './CommandIcons.js';
 import { showKeyboardShortcuts } from './KeyboardShortcutsDialog.js';
+import { ViewportControls } from './Viewport.Controls.js';
 
 function createToolbarButton( icon, label, onClick ) {
 
@@ -71,6 +72,8 @@ function Toolbar( editor, commandPalette ) {
 	transformFlyout.className = 'Toolbar-flyout';
 	transformFlyout.hidden = true;
 
+	const viewportControls = new ViewportControls( editor, { docked: true } );
+
 	const translate = createToolbarButton( 'move3d', strings.getKey( 'toolbar/translate' ), function () {
 
 		signals.transformModeChanged.dispatch( 'translate' );
@@ -103,6 +106,7 @@ function Toolbar( editor, commandPalette ) {
 	container.dom.appendChild( transformButton );
 	container.dom.appendChild( addButton );
 	container.dom.appendChild( shortcutsButton );
+	container.dom.appendChild( viewportControls.dom );
 	container.dom.appendChild( transformFlyout );
 
 	container.dom.addEventListener( 'keydown', function ( event ) {
