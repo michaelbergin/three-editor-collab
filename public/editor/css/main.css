@@ -636,6 +636,55 @@ hr {
 		white-space: nowrap;
 	}
 
+	#toolbar .ViewportControls--docked {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		margin-left: 3px;
+		padding-left: 7px;
+		border-left: 1px solid rgba(0, 0, 0, 0.12);
+	}
+
+	#toolbar .ViewportControls-control {
+		height: 32px;
+		min-width: 34px;
+		padding: 0 10px;
+		border: 0;
+		border-radius: 6px;
+		background: transparent;
+		color: #555;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 7px;
+		font-family: inherit;
+		font-size: 11px;
+		font-weight: 600;
+		line-height: 1;
+		cursor: pointer;
+	}
+
+	#toolbar .ViewportControls-control:hover,
+	#toolbar .ViewportControls-control:focus-within {
+		background: #fff;
+		color: #1f6feb;
+	}
+
+	#toolbar .ViewportControls-select {
+		max-width: 104px;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		color: inherit;
+		font-family: inherit;
+		font-size: inherit;
+		font-weight: inherit;
+		line-height: inherit;
+		text-transform: none;
+		cursor: pointer;
+		outline: none;
+	}
+
 	#toolbar .Toolbar-flyout {
 		position: absolute;
 		left: 50%;
@@ -849,6 +898,18 @@ hr {
 			display: none;
 		}
 
+		#toolbar .ViewportControls--docked {
+			padding-left: 5px;
+		}
+
+		#toolbar .ViewportControls-control {
+			padding: 0 9px;
+		}
+
+		#toolbar .ViewportControls-select {
+			max-width: 78px;
+		}
+
 	#animation {
 		display: none !important;
 	}
@@ -1013,6 +1074,20 @@ hr {
 		#toolbar .Toolbar-button:hover,
 		#toolbar .Toolbar-button[data-active="true"],
 		#toolbar .Toolbar-button[data-open="true"] {
+			background: #1f1f1f;
+			color: #7bb2ff;
+		}
+
+		#toolbar .ViewportControls--docked {
+			border-left-color: rgba(255, 255, 255, 0.1);
+		}
+
+		#toolbar .ViewportControls-control {
+			color: #aaa;
+		}
+
+		#toolbar .ViewportControls-control:hover,
+		#toolbar .ViewportControls-control:focus-within {
 			background: #1f1f1f;
 			color: #7bb2ff;
 		}
@@ -1592,12 +1667,60 @@ hr {
   pointer-events: none;
 }
 
+.viewport-chrome--minimized {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+
 .viewport-chrome--active {
   border-color: rgba(52, 211, 153, 0.7);
   box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25);
 }
 
+.viewport-chrome-borderHits {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.viewport-chrome-borderHit {
+  position: absolute;
+  pointer-events: auto;
+}
+
+.viewport-chrome-borderHit--top,
+.viewport-chrome-borderHit--bottom {
+  left: 0;
+  right: 0;
+  height: 6px;
+}
+
+.viewport-chrome-borderHit--top {
+  top: 0;
+}
+
+.viewport-chrome-borderHit--bottom {
+  bottom: 0;
+}
+
+.viewport-chrome-borderHit--left,
+.viewport-chrome-borderHit--right {
+  top: 0;
+  bottom: 0;
+  width: 6px;
+}
+
+.viewport-chrome-borderHit--left {
+  left: 0;
+}
+
+.viewport-chrome-borderHit--right {
+  right: 0;
+}
+
 .viewport-chrome-bar {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1606,14 +1729,124 @@ hr {
   pointer-events: auto;
 }
 
+.viewport-chrome--minimized .viewport-chrome-bar {
+  padding: 5px;
+}
+
 .viewport-chrome-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: min(160px, calc(100% - 28px));
+  min-height: 22px;
+  padding: 2px 7px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
   font-size: 11px;
   font-weight: 500;
   color: #fff;
+  font-family: inherit;
+  line-height: 1;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
   user-select: none;
 }
 
+.viewport-chrome--minimized .viewport-chrome-label {
+  max-width: 100%;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.viewport-chrome-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+.viewport-chrome-label:hover,
+.viewport-chrome-label[data-open="true"] {
+  background: rgba(0, 0, 0, 0.68);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.viewport-chrome-label:focus-visible {
+  outline: 2px solid rgba(52, 211, 153, 0.8);
+  outline-offset: 2px;
+}
+
+.viewport-chrome-labelText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewport-chrome-labelChevron {
+  flex: 0 0 auto;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.viewport-chrome-menu {
+  position: absolute;
+  z-index: 20;
+  top: 30px;
+  left: 6px;
+  min-width: 132px;
+  padding: 4px;
+  background: rgba(18, 18, 18, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
+  pointer-events: auto;
+}
+
+.viewport-chrome-menuItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 26px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.86);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.viewport-chrome-menuItem:hover,
+.viewport-chrome-menuItem:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  outline: none;
+}
+
+.viewport-chrome-menuItem[data-selected="true"] {
+  color: #fff;
+}
+
+.viewport-chrome-menuItemLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.viewport-chrome-menuItemCheck {
+  color: #34d399;
+  font-size: 11px;
+  text-align: right;
+}
+
+.viewport-chrome-minimize,
 .viewport-chrome-close {
   display: flex;
   align-items: center;
@@ -1631,6 +1864,7 @@ hr {
   pointer-events: auto;
 }
 
+.viewport-chrome-minimize:hover,
 .viewport-chrome-close:hover {
   background: rgba(0, 0, 0, 0.7);
 }

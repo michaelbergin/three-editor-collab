@@ -102,6 +102,15 @@ function SidebarSettingsShortcuts( editor ) {
 
 		switch ( event.key.toLowerCase() ) {
 
+			case 'escape':
+				if ( editor.selected !== null ) {
+
+					editor.deselect();
+
+				}
+
+				break;
+
 			case 'backspace':
 
 				event.preventDefault(); // prevent browser back

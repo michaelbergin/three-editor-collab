@@ -109,7 +109,15 @@ export function createViewportResizeHandle( handle, callbacks, getContainerRect 
 
 	}
 
+	function onDoubleClick( e ) {
+
+		e.stopPropagation();
+		callbacks.onDoubleClick?.();
+
+	}
+
 	dom.addEventListener( 'pointerdown', onPointerDown );
+	dom.addEventListener( 'dblclick', onDoubleClick );
 
 	applyHandle( handle );
 
@@ -132,6 +140,7 @@ export function createViewportResizeHandle( handle, callbacks, getContainerRect 
 			disposed = true;
 			activePointerId = null;
 			dom.removeEventListener( 'pointerdown', onPointerDown );
+			dom.removeEventListener( 'dblclick', onDoubleClick );
 			document.removeEventListener( 'pointermove', emitDrag );
 			document.removeEventListener( 'pointerup', finishPointer );
 			document.removeEventListener( 'pointercancel', finishPointer );

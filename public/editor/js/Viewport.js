@@ -7,7 +7,6 @@ import { UIPanel } from './libs/ui.js';
 
 import { EditorControls } from './EditorControls.js';
 
-import { ViewportControls } from './Viewport.Controls.js';
 import { ViewportInfo } from './Viewport.Info.js';
 
 import { ViewHelper } from './Viewport.ViewHelper.js';
@@ -22,7 +21,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { ViewportPathtracer } from './Viewport.Pathtracer.js';
 
 import { createViewportStore } from './ViewportState.js';
-import { computeViewportGrid } from './ViewportGrid.js';
+import { computeViewportLayout } from './ViewportGrid.js';
 import { createMultiViewportOverlay } from './MultiViewportOverlay.js';
 
 function Viewport( editor ) {
@@ -105,6 +104,17 @@ function Viewport( editor ) {
 
 	}
 
+	function createViewportCamera( viewport ) {
+
+		const cam = viewport.type === 'perspective'
+			? editor.viewportCamera.clone()
+			: createOrthoViewportCamera( viewport.type );
+
+		cam.userData.viewportType = viewport.type;
+		return cam;
+
+	}
+
 	function disposeOwnedViewportCamera( cam ) {
 
 		if ( cam === undefined || cam === null ) {
@@ -132,15 +142,7 @@ function Viewport( editor ) {
 		const s = vpStore.getState();
 		const keep = new Set( s.viewports.map( ( v ) => v.id ) );
 
-		vpCameras.set( 'vp-1-perspective', editor.viewportCamera );
-
 		for ( const id of Array.from( vpCameras.keys() ) ) {
-
-			if ( id === 'vp-1-perspective' ) {
-
-				continue;
-
-			}
 
 			if ( ! keep.has( id ) ) {
 
@@ -153,27 +155,29 @@ function Viewport( editor ) {
 
 		for ( const v of s.viewports ) {
 
-			if ( v.id === 'vp-1-perspective' ) {
+			if ( v.id === 'vp-1-perspective' && v.type === 'perspective' ) {
 
+				const current = vpCameras.get( v.id );
+				if ( current !== undefined && current !== editor.viewportCamera ) {
+
+					disposeOwnedViewportCamera( current );
+
+				}
+
+				vpCameras.set( v.id, editor.viewportCamera );
 				continue;
 
 			}
 
-			if ( ! vpCameras.has( v.id ) ) {
+			const current = vpCameras.get( v.id );
+			if (
+				current === undefined ||
+				current === editor.viewportCamera ||
+				current.userData.viewportType !== v.type
+			) {
 
-				let cam;
-
-				if ( v.type === 'perspective' ) {
-
-					cam = editor.viewportCamera.clone();
-
-				} else {
-
-					cam = createOrthoViewportCamera( v.type );
-
-				}
-
-				vpCameras.set( v.id, cam );
+				disposeOwnedViewportCamera( current );
+				vpCameras.set( v.id, createViewportCamera( v ) );
 
 			}
 
@@ -189,12 +193,13 @@ function Viewport( editor ) {
 		const W = container.dom.offsetWidth;
 		const H = container.dom.offsetHeight;
 		const s = vpStore.getState();
-		const rects = computeViewportGrid(
-			s.viewports.map( ( v ) => v.id ),
+		const rects = computeViewportLayout(
+			s.viewports,
 			W,
 			H,
 			s.colFractions,
 			s.rowFractions,
+			s.maximizedViewportId,
 		);
 
 		for ( const r of rects ) {
@@ -226,12 +231,13 @@ function Viewport( editor ) {
 		const x = normalizedVec2.x * W;
 		const y = normalizedVec2.y * H;
 		const s = vpStore.getState();
-		const rects = computeViewportGrid(
-			s.viewports.map( ( v ) => v.id ),
+		const rects = computeViewportLayout(
+			s.viewports,
 			W,
 			H,
 			s.colFractions,
 			s.rowFractions,
+			s.maximizedViewportId,
 		);
 
 		for ( const r of rects ) {
@@ -456,6 +462,16 @@ function Viewport( editor ) {
 
 		syncViewportCameras();
 		ensureViewportEditorControls();
+		if ( transformControlsDragging === true ) {
+
+			disableAllViewportControls();
+
+		} else {
+
+			restoreActiveViewportControls();
+
+		}
+
 		render();
 
 	} );
@@ -464,7 +480,6 @@ function Viewport( editor ) {
 	container.setId( 'viewport' );
 	container.setPosition( 'absolute' );
 
-	container.add( new ViewportControls( editor ) );
 	container.add( new ViewportInfo( editor ) );
 
 	//
@@ -759,10 +774,11 @@ function Viewport( editor ) {
 
 		const state = vpStore.getState();
 		const keep = new Set( state.viewports.map( ( v ) => v.id ) );
+		const viewportById = new Map( state.viewports.map( ( v ) => [ v.id, v ] ) );
 
 		for ( const id of Array.from( vpEditorControls.keys() ) ) {
 
-			if ( ! keep.has( id ) ) {
+			if ( ! keep.has( id ) || viewportById.get( id )?.type !== 'perspective' ) {
 
 				vpEditorControls.get( id ).disconnect();
 				vpEditorControls.delete( id );
@@ -832,6 +848,7 @@ function Viewport( editor ) {
 
 		const activeViewportId = vpStore.getState().activeViewportId;
 		const activeCamera = vpCameras.get( activeViewportId ) ?? editor.viewportCamera;
+		transformControls.camera = activeCamera;
 		setActiveViewportControls( activeViewportId, activeCamera );
 
 	}
@@ -1526,20 +1543,16 @@ function Viewport( editor ) {
 		const W = container.dom.offsetWidth;
 		const H = container.dom.offsetHeight;
 		const s = vpStore.getState();
-		const rects = computeViewportGrid(
-			s.viewports.map( function ( v ) {
-
-				return v.id;
-
-			} ),
+		const rects = computeViewportLayout(
+			s.viewports,
 			W,
 			H,
 			s.colFractions,
 			s.rowFractions,
+			s.maximizedViewportId,
 		);
 
 		renderer.setScissorTest( true );
-		vpCameras.set( 'vp-1-perspective', editor.viewportCamera );
 
 		for ( let ri = 0; ri < rects.length; ri ++ ) {
 

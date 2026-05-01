@@ -1,4 +1,4 @@
-import { computeViewportGrid, computeViewportResizeHandles, deriveViewportLabel } from './ViewportGrid.js';
+import { VIEWPORT_TYPE_LABELS, VIEWPORT_TYPES, computeViewportLayout, computeViewportResizeHandles, deriveViewportLabel } from './ViewportGrid.js';
 import { createViewportChrome } from './ViewportChrome.js';
 import { createViewportResizeHandle } from './ViewportResizeHandle.js';
 
@@ -27,21 +27,24 @@ export function createMultiViewportOverlay( hostElement, store, getContainerRect
 		const H = bounds.height;
 		const s = store.getState();
 
-		const rects = computeViewportGrid(
-			s.viewports.map( ( v ) => v.id ),
+		const rects = computeViewportLayout(
+			s.viewports,
 			W,
 			H,
 			s.colFractions,
 			s.rowFractions,
+			s.maximizedViewportId,
 		);
 
-		const handles = computeViewportResizeHandles(
-			rects,
-			W,
-			H,
-			s.colFractions,
-			s.rowFractions,
-		);
+		const handles = s.maximizedViewportId === null
+			? computeViewportResizeHandles(
+				rects,
+				W,
+				H,
+				s.colFractions,
+				s.rowFractions,
+			)
+			: [];
 
 		const rectById = new Map( rects.map( ( r ) => [ r.id, r ] ) );
 
@@ -60,7 +63,18 @@ export function createMultiViewportOverlay( hostElement, store, getContainerRect
 			const props = {
 				id: vp.id,
 				label,
+				type: vp.type,
+				typeOptions: VIEWPORT_TYPES.map( function ( type ) {
+
+					return {
+						value: type,
+						label: VIEWPORT_TYPE_LABELS[ type ],
+					};
+
+				} ),
 				isActive: vp.id === s.activeViewportId,
+				isMaximized: vp.id === s.maximizedViewportId,
+				isMinimized: rect.minimized === true,
 				canClose: s.viewports.length > 1,
 				rect,
 				onClose() {
@@ -71,6 +85,16 @@ export function createMultiViewportOverlay( hostElement, store, getContainerRect
 				onActivate() {
 
 					store.dispatch( { type: 'SET_ACTIVE', id: vp.id } );
+
+				},
+				onTypeChange( viewportType ) {
+
+					store.dispatch( { type: 'SET_VIEWPORT_TYPE', id: vp.id, viewportType } );
+
+				},
+				onToggleMaximized() {
+
+					store.dispatch( { type: 'TOGGLE_MAXIMIZED_VIEWPORT', id: vp.id } );
 
 				},
 			};
@@ -95,6 +119,7 @@ export function createMultiViewportOverlay( hostElement, store, getContainerRect
 			if ( ! keepChrome.has( id ) ) {
 
 				const chrome = chromeById.get( id );
+				chrome.dispose();
 				overlay.removeChild( chrome.dom );
 				chromeById.delete( id );
 
@@ -132,6 +157,14 @@ export function createMultiViewportOverlay( hostElement, store, getContainerRect
 								} );
 
 							}
+
+						},
+						onDoubleClick() {
+
+							store.dispatch( {
+								type: 'TOGGLE_MAXIMIZED_VIEWPORT',
+								id: store.getState().activeViewportId,
+							} );
 
 						},
 					},
@@ -179,6 +212,7 @@ export function createMultiViewportOverlay( hostElement, store, getContainerRect
 
 		for ( const chrome of chromeById.values() ) {
 
+			chrome.dispose();
 			overlay.removeChild( chrome.dom );
 
 		}
