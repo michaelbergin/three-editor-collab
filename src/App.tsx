@@ -16,7 +16,9 @@ import {
 } from 'lucide-react'
 
 import { ThreeViewport } from '@/components/editor/ThreeViewport'
+import { SceneViewportManager } from '@/components/editor/SceneViewportManager'
 import { Badge } from '@/components/ui/badge'
+import { ViewportProvider } from '@/store/ViewportContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -41,8 +43,9 @@ const transformFields = [
 
 function App() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="flex min-h-screen">
+    <ViewportProvider>
+      <main className="min-h-screen bg-background text-foreground">
+        <div className="flex min-h-screen">
         <aside className="hidden w-64 shrink-0 flex-col border-r bg-card lg:flex">
           <div className="flex h-14 items-center gap-2 border-b px-4">
             <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
@@ -79,6 +82,10 @@ function App() {
                   <span className="text-xs">{object.type}</span>
                 </button>
               ))}
+            </div>
+
+            <div className="mt-4 border-t border-border pt-4">
+              <SceneViewportManager />
             </div>
           </div>
 
@@ -218,7 +225,8 @@ function App() {
           </div>
         </div>
       </div>
-    </main>
+      </main>
+    </ViewportProvider>
   )
 }
 

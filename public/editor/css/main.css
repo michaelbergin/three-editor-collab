@@ -707,6 +707,86 @@ hr {
 	color: #888;
 }
 
+/* Multi-viewport manager */
+
+#sidebar .Panel.MultiViewportManager {
+	border-top: 0;
+}
+
+#sidebar .MultiViewportManager-list,
+#sidebar .MultiViewportManager-addButtons {
+	border-top: 0;
+	padding: 0;
+}
+
+#sidebar .MultiViewportManager-viewItem {
+	min-height: 30px;
+	margin-bottom: 0 !important;
+	border-top: 1px solid rgba(0, 0, 0, 0.08);
+	padding: 5px 0;
+}
+
+#sidebar .MultiViewportManager-viewItem:first-child {
+	border-top: 0;
+	padding-top: 0;
+}
+
+.Button.MultiViewportManager-addButton {
+	width: 100%;
+	min-height: 32px;
+	border: 1px solid rgba(0, 0, 0, 0.14);
+	border-radius: 7px;
+	background: #e9e9e9;
+	box-shadow:
+		0 1px 0 rgba(255, 255, 255, 0.85) inset,
+		0 1px 2px rgba(0, 0, 0, 0.08);
+	color: #555;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	text-align: left;
+	transition:
+		background-color 120ms ease,
+		border-color 120ms ease,
+		box-shadow 120ms ease,
+		color 120ms ease,
+		transform 120ms ease;
+}
+
+.Button.MultiViewportManager-addButton:hover {
+	border-color: rgba(0, 136, 255, 0.45);
+	background: #f3f8ff;
+	box-shadow:
+		0 1px 0 rgba(255, 255, 255, 0.95) inset,
+		0 4px 10px rgba(0, 136, 255, 0.14);
+	color: #1f6feb;
+	transform: translateY(-1px);
+}
+
+.Button.MultiViewportManager-addButton:active,
+.Button.MultiViewportManager-addButton[data-pressed="true"] {
+	border-color: rgba(0, 108, 214, 0.55);
+	background: #dbeeff;
+	box-shadow:
+		0 1px 2px rgba(0, 0, 0, 0.16) inset,
+		0 1px 0 rgba(255, 255, 255, 0.65);
+	color: #0b5cad;
+	transform: translateY(1px);
+}
+
+.Button.MultiViewportManager-addButton[data-released="true"] {
+	box-shadow:
+		0 0 0 3px rgba(0, 136, 255, 0.16),
+		0 4px 10px rgba(0, 136, 255, 0.1);
+	transform: translateY(0);
+}
+
+.Button.MultiViewportManager-addButton:focus-visible {
+	border-color: #08f;
+	box-shadow:
+		0 0 0 3px rgba(0, 136, 255, 0.2),
+		0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
 /* */
 
 @media all and ( max-width: 600px ) {
@@ -844,6 +924,50 @@ hr {
 
 		#sidebar .Panel {
 			border-top: 1px solid #222;
+		}
+
+		#sidebar .Panel.MultiViewportManager,
+		#sidebar .MultiViewportManager-list,
+		#sidebar .MultiViewportManager-addButtons {
+			border-top: 0;
+		}
+
+		#sidebar .MultiViewportManager-viewItem {
+			border-top-color: rgba(255, 255, 255, 0.08);
+		}
+
+		.Button.MultiViewportManager-addButton {
+			border-color: #343434;
+			background: #202020;
+			box-shadow:
+				0 1px 0 rgba(255, 255, 255, 0.06) inset,
+				0 1px 2px rgba(0, 0, 0, 0.4);
+			color: #aaa;
+		}
+
+		.Button.MultiViewportManager-addButton:hover {
+			border-color: rgba(123, 178, 255, 0.5);
+			background: #26313d;
+			box-shadow:
+				0 1px 0 rgba(255, 255, 255, 0.08) inset,
+				0 4px 12px rgba(0, 102, 204, 0.22);
+			color: #7bb2ff;
+		}
+
+		.Button.MultiViewportManager-addButton:active,
+		.Button.MultiViewportManager-addButton[data-pressed="true"] {
+			border-color: rgba(123, 178, 255, 0.58);
+			background: #172331;
+			box-shadow:
+				0 1px 3px rgba(0, 0, 0, 0.55) inset,
+				0 1px 0 rgba(255, 255, 255, 0.05);
+			color: #a9ccff;
+		}
+
+		.Button.MultiViewportManager-addButton[data-released="true"] {
+			box-shadow:
+				0 0 0 3px rgba(123, 178, 255, 0.16),
+				0 4px 12px rgba(0, 102, 204, 0.16);
 		}
 
 		#sidebar .Panel.Material canvas {
@@ -1450,4 +1574,78 @@ hr {
 		color: #bbb;
 	}
 
+}
+
+/* ── Multi-viewport overlay ───────────────────────── */
+
+.viewport-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.viewport-chrome {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+
+.viewport-chrome--active {
+  border-color: rgba(52, 211, 153, 0.7);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25);
+}
+
+.viewport-chrome-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+  pointer-events: auto;
+}
+
+.viewport-chrome-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  user-select: none;
+}
+
+.viewport-chrome-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: auto;
+}
+
+.viewport-chrome-close:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.viewport-resize-handle {
+  position: absolute;
+  z-index: 10;
+  touch-action: none;
+  pointer-events: auto;
+}
+
+.viewport-resize-handle--vertical {
+  cursor: col-resize;
+}
+
+.viewport-resize-handle--horizontal {
+  cursor: row-resize;
 }

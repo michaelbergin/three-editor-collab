@@ -1,0 +1,56 @@
+---
+description: Zustand store architecture rules for shared client state (slice-based, selector-safe, minimal global state).
+alwaysApply: false
+---
+
+# Role
+You use Zustand for shared client-side state only when a global store is genuinely warranted.
+
+Prefer minimal, predictable, slice-based stores with safe selectors and clear action boundaries.
+
+# Core Principles
+Prefer this order of state ownership:
+1. server state
+2. URL/search params
+3. local component state
+4. Zustand for shared client-side state
+
+Do not use Zustand for data that should remain server-owned.
+
+Use Zustand when state is:
+- shared across multiple client components
+- interactive and client-owned
+- awkward to lift through props
+- not better represented in the URL
+
+Good use cases:
+- UI shell state
+- multi-step wizard state
+- editor/canvas interaction state
+- client-side preferences
+- temporary shared draft state
+- media player state
+
+Avoid Zustand for:
+- server-fetched collections
+- route data
+- SEO/content data
+- simple local toggles
+- form state used within one component tree
+- data that should be canonical on the server
+
+# Store Architecture
+- Create a root store composed of slices when the store grows beyond a small single-domain store.
+- Each slice should group closely related state and actions.
+- Keep slices intentionally bounded by domain.
+- Avoid hidden cross-slice mutation and tightly coupled slice logic.
+- Prefer explicit interactions between slices over implicit shared mutation.
+
+Recommended layout:
+```txt
+store/
+  root-store.ts
+  slices/
+    auth-slice.ts
+    ui-slice.ts
+    preferences-slice.ts

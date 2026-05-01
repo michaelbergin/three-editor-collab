@@ -1,0 +1,38 @@
+---
+description: Generic agent-harness guidance for installed rules, skills, hooks, and upgrades.
+alwaysApply: true
+---
+
+# Agent Harness
+
+This project has reusable Cursor agent infrastructure installed by `agent-harness`.
+
+## Managed Files
+
+The harness manages:
+
+- `AGENTS.md`
+- `.cursor/rules/agent-critic-trigger.mdc`
+- `.cursor/rules/agent-critic.mdc`
+- `.cursor/rules/agent-harness.mdc`
+- `.cursor/rules/agent-learnings.mdc`
+- `.cursor/rules/pipeline-trigger.mdc`
+- `.cursor/rules/pipeline.mdc`
+- `.cursor/rules/supabase.mdc`
+- `.cursor/rules/zustand-store-architecture.mdc`
+- `.cursor/skills/**`
+- `.cursor/hooks.json`
+- `.cursor/hooks/file-scope-guard.sh`
+- `.cursor/hooks/tool-scope-guard.sh`
+- `.cursor/hooks/subagent-audit.sh`
+
+The installer records hashes in `.cursor/agent-harness-manifest.json` and treats edited managed files as local modifications.
+
+## Operating Guidance
+
+- Keep project-specific instructions in `AGENTS.md` or new local rules.
+- Keep harness-managed files generic unless intentionally forking them.
+- If the user mentions `#critic`, read `.cursor/rules/agent-critic.mdc` before acting.
+- If the user mentions `#implements`, read `.cursor/rules/pipeline.mdc` before acting.
+- Do not bypass approval gates defined in the pipeline rule.
+- Read `agent-learnings.mdc` before implementation and update it when you fix a repeatable mistake.
