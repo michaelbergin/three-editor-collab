@@ -32,17 +32,13 @@ export function createViewportResizeHandle( handle, callbacks, getContainerRect 
 
 	}
 
-	function finishPointer( e ) {
+	function emitDrag( e ) {
 
 		if ( e.pointerId !== activePointerId ) {
 
 			return;
 
 		}
-
-		activePointerId = null;
-		document.removeEventListener( 'pointerup', finishPointer );
-		document.removeEventListener( 'pointercancel', finishPointer );
 
 		const containerRect = getContainerRect();
 		let fraction;
@@ -62,6 +58,22 @@ export function createViewportResizeHandle( handle, callbacks, getContainerRect 
 
 		fraction = Math.min( 1, Math.max( 0, fraction ) );
 		callbacks.onDragEnd( capturedDirection, capturedDividerIndex, fraction );
+
+	}
+
+	function finishPointer( e ) {
+
+		if ( e.pointerId !== activePointerId ) {
+
+			return;
+
+		}
+
+		emitDrag( e );
+		activePointerId = null;
+		document.removeEventListener( 'pointermove', emitDrag );
+		document.removeEventListener( 'pointerup', finishPointer );
+		document.removeEventListener( 'pointercancel', finishPointer );
 
 	}
 
@@ -91,6 +103,7 @@ export function createViewportResizeHandle( handle, callbacks, getContainerRect 
 		capturedDirection = handle.direction;
 		capturedDividerIndex = handle.dividerIndex;
 		activePointerId = e.pointerId;
+		document.addEventListener( 'pointermove', emitDrag );
 		document.addEventListener( 'pointerup', finishPointer );
 		document.addEventListener( 'pointercancel', finishPointer );
 
@@ -119,6 +132,7 @@ export function createViewportResizeHandle( handle, callbacks, getContainerRect 
 			disposed = true;
 			activePointerId = null;
 			dom.removeEventListener( 'pointerdown', onPointerDown );
+			document.removeEventListener( 'pointermove', emitDrag );
 			document.removeEventListener( 'pointerup', finishPointer );
 			document.removeEventListener( 'pointercancel', finishPointer );
 

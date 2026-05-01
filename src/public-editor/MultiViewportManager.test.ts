@@ -12,9 +12,7 @@ describe('MultiViewportManager.js', () => {
   }
 
   function viewportRows(panel: { dom: HTMLElement }) {
-    return [...panel.dom.querySelectorAll('.option')].filter((el) =>
-      [...el.querySelectorAll('button')].some((button) => button.textContent === '×'),
-    )
+    return [...panel.dom.querySelectorAll('.MultiViewportManager-viewItem')]
   }
 
   function setupEditorWithStore(): EditorStub {
@@ -29,6 +27,8 @@ describe('MultiViewportManager.js', () => {
     const panel = MultiViewportManager(editor)
     const rows = viewportRows(panel)
     const removeButtons = panel.dom.querySelectorAll('button')
+    expect(panel.dom.style.borderBottom).toBe('1px solid rgba(127, 127, 127, 0.28)')
+    expect(panel.dom.style.paddingBottom).toBe('14px')
     expect(rows).toHaveLength(1)
     const hiddenRemove = [...removeButtons].filter(
       (b) => (b as HTMLElement).style.display === 'none',
@@ -40,9 +40,10 @@ describe('MultiViewportManager.js', () => {
     const editor = setupEditorWithStore()
     const panel = MultiViewportManager(editor)
 
-    const addTop = [...panel.dom.querySelectorAll('.option')].find((el) =>
+    const addTop = [...panel.dom.querySelectorAll('.MultiViewportManager-addButton')].find((el) =>
       el.textContent?.includes('＋ Top'),
     )!
+    expect(addTop.classList.contains('MultiViewportManager-addButton')).toBe(true)
     fireEvent.click(addTop)
 
     expect(editor.viewportStore.getState().viewports).toHaveLength(2)

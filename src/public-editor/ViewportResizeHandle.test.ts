@@ -60,7 +60,7 @@ describe('ViewportResizeHandle.js', () => {
     h2.dispose()
   })
 
-  it('pointer sequence invokes onDragEnd once with dividerIndex', () => {
+  it('pointer sequence invokes onDragEnd during movement and at release', () => {
     const onDragEnd = jest.fn()
     const instance = createViewportResizeHandle(
       {
@@ -81,14 +81,22 @@ describe('ViewportResizeHandle.js', () => {
       clientX: 200,
       clientY: 50,
     })
+    fireEvent.pointerMove(document, {
+      pointerId: 1,
+      clientX: 160,
+      clientY: 50,
+    })
+    expect(onDragEnd).toHaveBeenCalledTimes(1)
+    expect(onDragEnd.mock.calls[0]).toEqual(['vertical', 2, 0.4])
+
     fireEvent.pointerUp(document, {
       pointerId: 1,
       clientX: 200,
       clientY: 50,
     })
 
-    expect(onDragEnd).toHaveBeenCalledTimes(1)
-    expect(onDragEnd.mock.calls[0][1]).toBe(2)
+    expect(onDragEnd).toHaveBeenCalledTimes(2)
+    expect(onDragEnd.mock.calls[1]).toEqual(['vertical', 2, 0.5])
 
     instance.dispose()
 
@@ -103,6 +111,6 @@ describe('ViewportResizeHandle.js', () => {
       clientY: 50,
     })
 
-    expect(onDragEnd).toHaveBeenCalledTimes(1)
+    expect(onDragEnd).toHaveBeenCalledTimes(2)
   })
 })

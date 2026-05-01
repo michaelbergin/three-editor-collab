@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { UIPanel, UIBreak, UIRow, UIColor, UISelect, UIText, UINumber } from './libs/ui.js';
 import { UIOutliner, UITexture } from './libs/ui.three.js';
 
+import { MultiViewportManager } from './MultiViewportManager.js';
+
 function SidebarScene( editor ) {
 
 	const signals = editor.signals;
@@ -146,6 +148,8 @@ function SidebarScene( editor ) {
 
 	} );
 	container.add( outliner );
+	container.add( new UIBreak() );
+	container.add( MultiViewportManager( editor ) );
 	container.add( new UIBreak() );
 
 	// background

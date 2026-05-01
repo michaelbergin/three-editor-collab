@@ -89,9 +89,15 @@ jest.mock('../../public/editor/js/EditorControls.js', () => ({
       })
     }
 
+    disconnect() {}
+
     focus() {}
   },
 }))
+
+const mockTransformControlsInstances: Array<{
+  dispatchEvent(event: { type: string }): void
+}> = []
 
 jest.mock('three/addons/controls/TransformControls.js', () => {
   const actualThree = jest.requireActual<typeof import('three')>('three')
@@ -99,12 +105,30 @@ jest.mock('three/addons/controls/TransformControls.js', () => {
   return {
     TransformControls: class {
       object = undefined
+      listeners: Record<string, Array<() => void>> = {}
 
-      addEventListener() {}
+      constructor() {
+        mockTransformControlsInstances.push(this)
+      }
+
+      addEventListener(type: string, fn: () => void) {
+        this.listeners[type] ??= []
+        this.listeners[type].push(fn)
+      }
+
+      dispatchEvent(event: { type: string }) {
+        for (const fn of this.listeners[event.type] ?? []) {
+          fn()
+        }
+      }
+
       connect() {}
       detach() {}
       attach() {}
       setMode() {}
+      getMode() {
+        return 'translate'
+      }
       setTranslationSnap() {}
       setSpace() {}
       getHelper() {
@@ -320,11 +344,10 @@ describe('Viewport.js multi-viewport integration', () => {
   it('scissor-renders each viewport and creates finite orthographic projections', () => {
     const { editor, renderer } = setupViewport()
 
-    editor.viewportStore.dispatch({ type: 'ADD_VIEWPORT', viewportType: 'top' })
     renderer.setScissor.mockClear()
     renderer.render.mockClear()
 
-    editor.signals.cameraChanged.dispatch()
+    editor.viewportStore.dispatch({ type: 'ADD_VIEWPORT', viewportType: 'top' })
 
     expect(renderer.setScissor).toHaveBeenCalledWith(0, 0, 400, 600)
     expect(renderer.setScissor).toHaveBeenCalledWith(400, 0, 400, 600)
@@ -337,6 +360,11 @@ describe('Viewport.js multi-viewport integration', () => {
     const topCamera = secondarySceneRender?.[1] as THREE.OrthographicCamera
     expect(topCamera.isOrthographicCamera).toBe(true)
     expect(topCamera.projectionMatrix.elements.every(Number.isFinite)).toBe(true)
+
+    const secondaryOverlayRender = renderer.render.mock.calls.find(
+      ([object, cam]) => object !== editor.scene && cam === topCamera,
+    )
+    expect(secondaryOverlayRender).toBeTruthy()
   })
 
   it('uses the current viewportCamera after viewportCameraChanged without helper draws', () => {
@@ -356,6 +384,10 @@ describe('Viewport.js multi-viewport integration', () => {
   it('keeps controls and picking scoped to the perspective cell', () => {
     const { editor, renderer } = setupViewport()
     editor.viewportStore.dispatch({ type: 'ADD_VIEWPORT', viewportType: 'top' })
+    let scopedBounds: Pick<DOMRect, 'left' | 'width'> | null = null
+    renderer.domElement.addEventListener('pointerdown', () => {
+      scopedBounds = renderer.domElement.getBoundingClientRect()
+    })
 
     fireEvent.pointerDown(renderer.domElement, {
       clientX: 600,
@@ -366,7 +398,14 @@ describe('Viewport.js multi-viewport integration', () => {
 
     fireEvent.mouseDown(renderer.domElement, { clientX: 600, clientY: 300 })
     fireEvent.mouseUp(document, { clientX: 600, clientY: 300 })
-    expect(editor.selector.getPointerIntersects).not.toHaveBeenCalled()
+    expect(editor.selector.getPointerIntersects).toHaveBeenCalledTimes(1)
+    const topCall = (editor.selector.getPointerIntersects.mock.calls as unknown[][])[0]
+    const topPointer = topCall[0] as THREE.Vector2
+    const topCamera = topCall[1] as THREE.Camera
+    expect(topPointer.x).toBeCloseTo(0.5)
+    expect(topPointer.y).toBeCloseTo(0.5)
+    expect(topCamera).not.toBe(editor.camera)
+    expect(scopedBounds).toMatchObject({ left: 400, width: 400 })
 
     fireEvent.wheel(renderer.domElement, {
       clientX: 600,
@@ -387,9 +426,134 @@ describe('Viewport.js multi-viewport integration', () => {
     fireEvent.mouseDown(renderer.domElement, { clientX: 200, clientY: 300 })
     fireEvent.mouseUp(document, { clientX: 200, clientY: 300 })
 
-    const pointer = (editor.selector.getPointerIntersects.mock.calls as unknown[][])[0][0] as THREE.Vector2
+    expect(editor.selector.getPointerIntersects).toHaveBeenCalledTimes(2)
+    const pointer = (editor.selector.getPointerIntersects.mock.calls as unknown[][])[1][0] as THREE.Vector2
+    const pointerCamera = (editor.selector.getPointerIntersects.mock.calls as unknown[][])[1][1] as THREE.Camera
     expect(pointer.x).toBeCloseTo(0.5)
     expect(pointer.y).toBeCloseTo(0.5)
+    expect(pointerCamera).toBe(editor.camera)
+  })
+
+  it('raycasts actual scene geometry from a secondary top viewport', () => {
+    const { editor, renderer } = setupViewport()
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial())
+    editor.scene.add(mesh)
+    editor.scene.updateMatrixWorld(true)
+
+    const raycaster = new THREE.Raycaster()
+    const getPointerIntersects = editor.selector.getPointerIntersects as jest.Mock
+    getPointerIntersects.mockImplementation((point: THREE.Vector2, camera: THREE.Camera) => {
+      raycaster.setFromCamera(new THREE.Vector2(point.x * 2 - 1, -point.y * 2 + 1), camera)
+      return raycaster.intersectObject(mesh, false)
+    })
+
+    editor.viewportStore.dispatch({ type: 'ADD_VIEWPORT', viewportType: 'top' })
+
+    fireEvent.mouseDown(renderer.domElement, { clientX: 600, clientY: 300 })
+    fireEvent.mouseUp(document, { clientX: 600, clientY: 300 })
+
+    expect(editor.selector.getPointerIntersects).toHaveBeenCalledTimes(1)
+    expect(editor.selector.getPointerIntersects.mock.results[0].value).toHaveLength(1)
+
+    mesh.geometry.dispose()
+    ;(mesh.material as THREE.Material).dispose()
+  })
+
+  it('supports zooming and panning orthographic viewports', () => {
+    const { editor, renderer } = setupViewport()
+
+    editor.viewportStore.dispatch({ type: 'ADD_VIEWPORT', viewportType: 'top' })
+    const topSceneRender = renderer.render.mock.calls.find(
+      ([object, cam]) => object === editor.scene && cam !== editor.camera,
+    )
+    const topCamera = topSceneRender?.[1] as THREE.OrthographicCamera
+    const initialZoom = topCamera.zoom
+    const initialPosition = topCamera.position.clone()
+
+    fireEvent.wheel(renderer.domElement, {
+      clientX: 600,
+      clientY: 300,
+      deltaY: -1,
+    })
+    expect(topCamera.zoom).toBeGreaterThan(initialZoom)
+    expect(editor.camera.userData.controlWheels).toBe(0)
+
+    fireEvent.pointerDown(renderer.domElement, {
+      button: 2,
+      clientX: 600,
+      clientY: 300,
+      pointerId: 22,
+    })
+    fireEvent.pointerMove(renderer.domElement, {
+      clientX: 640,
+      clientY: 300,
+      pointerId: 22,
+    })
+    fireEvent.pointerUp(renderer.domElement, {
+      clientX: 640,
+      clientY: 300,
+      pointerId: 22,
+    })
+
+    expect(topCamera.position.equals(initialPosition)).toBe(false)
+    expect(editor.camera.userData.controlPointerDowns).toBe(0)
+  })
+
+  it('enables orbit controls for a newly added perspective viewport', () => {
+    const { editor, renderer } = setupViewport()
+
+    editor.viewportStore.dispatch({ type: 'ADD_VIEWPORT', viewportType: 'perspective' })
+
+    const secondaryPerspectiveRender = renderer.render.mock.calls.find(
+      ([object, cam]) => object === editor.scene && cam !== editor.camera,
+    )
+    const secondaryCamera = secondaryPerspectiveRender?.[1] as THREE.PerspectiveCamera
+    expect(secondaryCamera.isPerspectiveCamera).toBe(true)
+
+    fireEvent.pointerDown(renderer.domElement, {
+      clientX: 600,
+      clientY: 300,
+      pointerId: 12,
+    })
+
+    expect(editor.camera.userData.controlPointerDowns).toBe(0)
+    expect(secondaryCamera.userData.controlPointerDowns).toBe(1)
+  })
+
+  it('disables perspective viewport controls while the gumball is dragging', () => {
+    const { editor, renderer } = setupViewport()
+
+    editor.viewportStore.dispatch({ type: 'ADD_VIEWPORT', viewportType: 'perspective' })
+    const secondaryPerspectiveRender = renderer.render.mock.calls.find(
+      ([object, cam]) => object === editor.scene && cam !== editor.camera,
+    )
+    const secondaryCamera = secondaryPerspectiveRender?.[1] as THREE.PerspectiveCamera
+
+    fireEvent.pointerDown(renderer.domElement, {
+      clientX: 600,
+      clientY: 300,
+      pointerId: 12,
+    })
+    expect(secondaryCamera.userData.controlPointerDowns).toBe(1)
+
+    const transformControls = mockTransformControlsInstances.at(-1)!
+    ;(transformControls as unknown as { object: THREE.Object3D }).object = new THREE.Object3D()
+    transformControls.dispatchEvent({ type: 'mouseDown' })
+
+    fireEvent.pointerDown(renderer.domElement, {
+      clientX: 600,
+      clientY: 300,
+      pointerId: 13,
+    })
+    expect(secondaryCamera.userData.controlPointerDowns).toBe(1)
+
+    transformControls.dispatchEvent({ type: 'mouseUp' })
+    fireEvent.pointerDown(renderer.domElement, {
+      clientX: 600,
+      clientY: 300,
+      pointerId: 14,
+    })
+    expect(secondaryCamera.userData.controlPointerDowns).toBe(2)
   })
 
   it('syncs overlay geometry on resize and preserves one overlay after editorCleared', () => {

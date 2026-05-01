@@ -34,6 +34,7 @@ function Viewport( editor ) {
 	editor.viewportStore = vpStore;
 
 	const vpCameras = new Map();
+	const vpEditorControls = new Map();
 
 	let multiViewportOverlay = null;
 
@@ -58,6 +59,7 @@ function Viewport( editor ) {
 
 			cam.aspect = w / h;
 			cam.updateProjectionMatrix();
+			cam.updateMatrixWorld();
 
 		} else if ( cam.isOrthographicCamera ) {
 
@@ -70,6 +72,7 @@ function Viewport( editor ) {
 			cam.top = halfH;
 			cam.bottom = - halfH;
 			cam.updateProjectionMatrix();
+			cam.updateMatrixWorld();
 
 		}
 
@@ -97,6 +100,7 @@ function Viewport( editor ) {
 		}
 
 		cam.lookAt( 0, 0, 0 );
+		cam.updateMatrixWorld();
 		return cam;
 
 	}
@@ -215,37 +219,7 @@ function Viewport( editor ) {
 
 	}
 
-	function normalizedCoordsHitInteractiveViewport( normalizedVec2 ) {
-
-		const x = normalizedVec2.x * container.dom.offsetWidth;
-		const y = normalizedVec2.y * container.dom.offsetHeight;
-		const s = vpStore.getState();
-		const rects = computeViewportGrid(
-			s.viewports.map( ( v ) => v.id ),
-			container.dom.offsetWidth,
-			container.dom.offsetHeight,
-			s.colFractions,
-			s.rowFractions,
-		);
-
-		for ( const r of rects ) {
-
-			const insideX = x >= r.x && x < r.x + r.width;
-			const insideY = y >= r.y && y < r.y + r.height;
-			if ( insideX && insideY ) {
-
-				const cam = vpCameras.get( r.id ) ?? editor.viewportCamera;
-				return cam === editor.viewportCamera;
-
-			}
-
-		}
-
-		return false;
-
-	}
-
-	function getInteractiveViewportPointer( normalizedVec2 ) {
+	function getViewportPointerContext( normalizedVec2 ) {
 
 		const W = container.dom.offsetWidth;
 		const H = container.dom.offsetHeight;
@@ -267,16 +241,15 @@ function Viewport( editor ) {
 			if ( insideX && insideY ) {
 
 				const cam = vpCameras.get( r.id ) ?? editor.viewportCamera;
-				if ( cam !== editor.viewportCamera ) {
-
-					return null;
-
-				}
-
-				return new THREE.Vector2(
-					( x - r.x ) / Math.max( r.width, Number.EPSILON ),
-					( y - r.y ) / Math.max( r.height, Number.EPSILON ),
-				);
+				syncViewportCameraProjection( cam, r );
+				return {
+					id: r.id,
+					camera: cam,
+					pointer: new THREE.Vector2(
+						( x - r.x ) / Math.max( r.width, Number.EPSILON ),
+						( y - r.y ) / Math.max( r.height, Number.EPSILON ),
+					),
+				};
 
 			}
 
@@ -304,12 +277,176 @@ function Viewport( editor ) {
 		vpStore.dispatch( { type: 'SET_ACTIVE', id: hit.id } );
 
 		const cam = vpCameras.get( hit.id ) ?? editor.viewportCamera;
-		if ( cam !== editor.viewportCamera ) {
+		if ( transformControls !== undefined ) {
 
+			transformControls.camera = cam;
+
+		}
+
+		if ( transformControlsDragging === true ) {
+
+			disableAllViewportControls();
+
+		} else {
+
+			setActiveViewportControls( hit.id, cam );
+
+		}
+
+		presentViewportBoundsToCanvasHandlers( hit );
+		handleOrthographicViewportNavigation( event, hit, cam );
+
+	}
+
+	function handleOrthographicViewportNavigation( event, rect, viewportCamera ) {
+
+		if ( transformControlsDragging === true || ! viewportCamera.isOrthographicCamera ) {
+
+			return;
+
+		}
+
+		if ( event.type === 'wheel' ) {
+
+			const zoomFactor = event.deltaY > 0 ? 0.9 : 1.1;
+			viewportCamera.zoom = Math.min( 100, Math.max( 0.05, viewportCamera.zoom * zoomFactor ) );
+			viewportCamera.updateProjectionMatrix();
+			viewportCamera.updateMatrixWorld();
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			render();
+			return;
+
+		}
+
+		if ( event.type === 'pointerdown' && ( event.button === 1 || event.button === 2 ) ) {
+
+			orthographicDragState = {
+				pointerId: event.pointerId,
+				mode: event.button === 1 ? 'zoom' : 'pan',
+				camera: viewportCamera,
+				rect,
+				lastX: event.clientX,
+				lastY: event.clientY,
+			};
+			renderer.domElement.setPointerCapture?.( event.pointerId );
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			return;
+
+		}
+
+		if ( orthographicDragState === null || event.pointerId !== orthographicDragState.pointerId ) {
+
+			return;
+
+		}
+
+		if ( event.type === 'pointermove' ) {
+
+			const dx = event.clientX - orthographicDragState.lastX;
+			const dy = event.clientY - orthographicDragState.lastY;
+			orthographicDragState.lastX = event.clientX;
+			orthographicDragState.lastY = event.clientY;
+
+			if ( orthographicDragState.mode === 'pan' ) {
+
+				panOrthographicViewportCamera( orthographicDragState.camera, orthographicDragState.rect, dx, dy );
+
+			} else {
+
+				const zoomFactor = Math.exp( - dy * 0.01 );
+				orthographicDragState.camera.zoom = Math.min( 100, Math.max( 0.05, orthographicDragState.camera.zoom * zoomFactor ) );
+				orthographicDragState.camera.updateProjectionMatrix();
+				orthographicDragState.camera.updateMatrixWorld();
+
+			}
+
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			render();
+			return;
+
+		}
+
+		if ( event.type === 'pointerup' || event.type === 'pointercancel' ) {
+
+			orthographicDragState = null;
 			event.preventDefault();
 			event.stopImmediatePropagation();
 
 		}
+
+	}
+
+	function panOrthographicViewportCamera( viewportCamera, rect, dx, dy ) {
+
+		const visibleWidth = ( viewportCamera.right - viewportCamera.left ) / Math.max( viewportCamera.zoom, Number.EPSILON );
+		const visibleHeight = ( viewportCamera.top - viewportCamera.bottom ) / Math.max( viewportCamera.zoom, Number.EPSILON );
+		const right = new THREE.Vector3( 1, 0, 0 ).applyQuaternion( viewportCamera.quaternion );
+		const up = new THREE.Vector3( 0, 1, 0 ).applyQuaternion( viewportCamera.quaternion );
+
+		viewportCamera.position.addScaledVector( right, - dx / Math.max( rect.width, Number.EPSILON ) * visibleWidth );
+		viewportCamera.position.addScaledVector( up, dy / Math.max( rect.height, Number.EPSILON ) * visibleHeight );
+		viewportCamera.updateMatrixWorld();
+
+	}
+
+	function presentViewportBoundsToCanvasHandlers( rect ) {
+
+		if ( renderer === null ) {
+
+			return;
+
+		}
+
+		if ( restoreRendererBounds === null ) {
+
+			const originalGetBoundingClientRect = renderer.domElement.getBoundingClientRect.bind( renderer.domElement );
+			restoreRendererBounds = function () {
+
+				renderer.domElement.getBoundingClientRect = originalGetBoundingClientRect;
+				restoreRendererBounds = null;
+
+			};
+
+		}
+
+		if ( restoreRendererBoundsTimer !== null ) {
+
+			window.clearTimeout( restoreRendererBoundsTimer );
+
+		}
+
+		const bounds = container.dom.getBoundingClientRect();
+		const scopedRect = {
+			left: bounds.left + rect.x,
+			top: bounds.top + rect.y,
+			width: rect.width,
+			height: rect.height,
+			right: bounds.left + rect.x + rect.width,
+			bottom: bounds.top + rect.y + rect.height,
+			x: bounds.left + rect.x,
+			y: bounds.top + rect.y,
+			toJSON() {
+
+				return {};
+
+			},
+		};
+
+		renderer.domElement.getBoundingClientRect = function () {
+
+			return scopedRect;
+
+		};
+
+		restoreRendererBoundsTimer = window.setTimeout( function () {
+
+			restoreRendererBoundsTimer = null;
+			if ( restoreRendererBounds !== null ) restoreRendererBounds();
+
+		}, 0 );
 
 	}
 
@@ -318,6 +455,8 @@ function Viewport( editor ) {
 	vpStore.subscribe( function () {
 
 		syncViewportCameras();
+		ensureViewportEditorControls();
+		render();
 
 	} );
 
@@ -335,6 +474,9 @@ function Viewport( editor ) {
 	let pathtracer = null;
 
 	let vpInputHandler = null;
+	let restoreRendererBoundsTimer = null;
+	let restoreRendererBounds = null;
+	let orthographicDragState = null;
 
 	const camera = editor.camera;
 	const scene = editor.scene;
@@ -372,6 +514,7 @@ function Viewport( editor ) {
 	let objectPositionOnDown = null;
 	let objectRotationOnDown = null;
 	let objectScaleOnDown = null;
+	let transformControlsDragging = false;
 
 	const transformControls = new TransformControls( camera );
 	transformControls.addEventListener( 'axis-changed', function () {
@@ -392,7 +535,8 @@ function Viewport( editor ) {
 		objectRotationOnDown = object.rotation.clone();
 		objectScaleOnDown = object.scale.clone();
 
-		controls.enabled = false;
+		transformControlsDragging = true;
+		disableAllViewportControls();
 
 	} );
 	transformControls.addEventListener( 'mouseUp', function () {
@@ -437,7 +581,8 @@ function Viewport( editor ) {
 
 		}
 
-		controls.enabled = true;
+		transformControlsDragging = false;
+		restoreActiveViewportControls();
 
 	} );
 
@@ -492,20 +637,17 @@ function Viewport( editor ) {
 
 		if ( onDownPosition.distanceTo( onUpPosition ) === 0 ) {
 
-			if ( ! normalizedCoordsHitInteractiveViewport( onUpPosition ) ) {
+			const context = getViewportPointerContext( onUpPosition );
+			if ( context === null ) {
 
 				return;
 
 			}
 
-			const pointer = getInteractiveViewportPointer( onUpPosition );
-			if ( pointer === null ) {
-
-				return;
-
-			}
-
-			const intersects = selector.getPointerIntersects( pointer, camera );
+			scene.updateMatrixWorld( true );
+			sceneHelpers.updateMatrixWorld( true );
+			context.camera.updateMatrixWorld();
+			const intersects = selector.getPointerIntersects( context.pointer, context.camera );
 			signals.intersectionsDetected.dispatch( intersects );
 
 			render();
@@ -567,20 +709,17 @@ function Viewport( editor ) {
 		const array = getMousePosition( container.dom, event.clientX, event.clientY );
 		onDoubleClickPosition.fromArray( array );
 
-		if ( ! normalizedCoordsHitInteractiveViewport( onDoubleClickPosition ) ) {
+		const context = getViewportPointerContext( onDoubleClickPosition );
+		if ( context === null ) {
 
 			return;
 
 		}
 
-		const pointer = getInteractiveViewportPointer( onDoubleClickPosition );
-		if ( pointer === null ) {
-
-			return;
-
-		}
-
-		const intersects = selector.getPointerIntersects( pointer, camera );
+		scene.updateMatrixWorld( true );
+		sceneHelpers.updateMatrixWorld( true );
+		context.camera.updateMatrixWorld();
+		const intersects = selector.getPointerIntersects( context.pointer, context.camera );
 
 		if ( intersects.length > 0 ) {
 
@@ -609,6 +748,93 @@ function Viewport( editor ) {
 	viewHelper.center = controls.center;
 
 	editor.controls = controls;
+
+	function ensureViewportEditorControls() {
+
+		if ( renderer === null ) {
+
+			return;
+
+		}
+
+		const state = vpStore.getState();
+		const keep = new Set( state.viewports.map( ( v ) => v.id ) );
+
+		for ( const id of Array.from( vpEditorControls.keys() ) ) {
+
+			if ( ! keep.has( id ) ) {
+
+				vpEditorControls.get( id ).disconnect();
+				vpEditorControls.delete( id );
+
+			}
+
+		}
+
+		for ( const viewport of state.viewports ) {
+
+			if ( viewport.id === 'vp-1-perspective' || viewport.type !== 'perspective' ) {
+
+				continue;
+
+			}
+
+			if ( ! vpEditorControls.has( viewport.id ) ) {
+
+				const viewportCamera = vpCameras.get( viewport.id );
+				if ( viewportCamera === undefined ) {
+
+					continue;
+
+				}
+
+				const viewportControls = new EditorControls( viewportCamera );
+				viewportControls.enabled = false;
+				viewportControls.connect( renderer.domElement );
+				viewportControls.addEventListener( 'change', function () {
+
+					signals.cameraChanged.dispatch( viewportCamera );
+
+				} );
+				vpEditorControls.set( viewport.id, viewportControls );
+
+			}
+
+		}
+
+	}
+
+	function setActiveViewportControls( viewportId, viewportCamera ) {
+
+		controls.enabled = viewportCamera === editor.viewportCamera;
+
+		for ( const [ id, viewportControls ] of vpEditorControls ) {
+
+			viewportControls.enabled = id === viewportId;
+
+		}
+
+	}
+
+	function disableAllViewportControls() {
+
+		controls.enabled = false;
+
+		for ( const viewportControls of vpEditorControls.values() ) {
+
+			viewportControls.enabled = false;
+
+		}
+
+	}
+
+	function restoreActiveViewportControls() {
+
+		const activeViewportId = vpStore.getState().activeViewportId;
+		const activeCamera = vpCameras.get( activeViewportId ) ?? editor.viewportCamera;
+		setActiveViewportControls( activeViewportId, activeCamera );
+
+	}
 
 	// signals
 
@@ -667,11 +893,21 @@ function Viewport( editor ) {
 
 			if ( vpInputHandler !== null ) {
 
-				renderer.domElement.removeEventListener( 'pointerdown', vpInputHandler, true );
-				renderer.domElement.removeEventListener( 'wheel', vpInputHandler, true );
+				container.dom.removeEventListener( 'pointerdown', vpInputHandler, true );
+				container.dom.removeEventListener( 'pointermove', vpInputHandler, true );
+				container.dom.removeEventListener( 'pointerup', vpInputHandler, true );
+				container.dom.removeEventListener( 'pointercancel', vpInputHandler, true );
+				container.dom.removeEventListener( 'wheel', vpInputHandler, true );
 				vpInputHandler = null;
 
 			}
+
+			for ( const viewportControls of vpEditorControls.values() ) {
+
+				viewportControls.disconnect();
+
+			}
+			vpEditorControls.clear();
 
 			renderer.setAnimationLoop( null );
 
@@ -702,6 +938,7 @@ function Viewport( editor ) {
 		transformControls.connect( newRenderer.domElement );
 
 		renderer = newRenderer;
+		ensureViewportEditorControls();
 
 		renderer.setAnimationLoop( animate );
 		renderer.setClearColor( 0xaaaaaa );
@@ -757,8 +994,11 @@ function Viewport( editor ) {
 
 		vpInputHandler = routeViewportInput;
 
-		renderer.domElement.addEventListener( 'pointerdown', vpInputHandler, true );
-		renderer.domElement.addEventListener( 'wheel', vpInputHandler, true );
+		container.dom.addEventListener( 'pointerdown', vpInputHandler, true );
+		container.dom.addEventListener( 'pointermove', vpInputHandler, true );
+		container.dom.addEventListener( 'pointerup', vpInputHandler, true );
+		container.dom.addEventListener( 'pointercancel', vpInputHandler, true );
+		container.dom.addEventListener( 'wheel', vpInputHandler, true );
 
 		signals.sceneEnvironmentChanged.dispatch( editor.environmentType );
 
@@ -1314,17 +1554,25 @@ function Viewport( editor ) {
 			renderer.clear( true, true, true );
 			renderer.render( scene, cam );
 
-			if ( camera === editor.viewportCamera && cam === editor.viewportCamera ) {
+			const renderEditorOverlays = cam !== editor.viewportCamera || camera === editor.viewportCamera;
+
+			if ( renderEditorOverlays === true ) {
 
 				renderer.setViewport( rect.x, yGl, rect.width, rect.height );
 				renderer.setScissor( rect.x, yGl, rect.width, rect.height );
 				renderer.autoClear = false;
 				if ( grid.visible === true ) renderer.render( grid, cam );
 				if ( sceneHelpers.visible === true ) renderer.render( sceneHelpers, cam );
-				if ( renderer.xr.isPresenting !== true ) viewHelper.render( renderer );
-				renderer.autoClear = true;
 
 			}
+
+			if ( camera === editor.viewportCamera && cam === editor.viewportCamera ) {
+
+				if ( renderer.xr.isPresenting !== true ) viewHelper.render( renderer );
+
+			}
+
+			renderer.autoClear = true;
 
 		}
 
