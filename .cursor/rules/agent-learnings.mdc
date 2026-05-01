@@ -1,0 +1,18 @@
+---
+description: Recurring agent mistakes and correct patterns for this project. Read before starting implementation work.
+alwaysApply: true
+---
+
+# Agent Learnings — Errors and Correct Implementations
+
+When fixing a mistake that is easy to repeat, document it here with:
+
+- **Wrong**: the repeated failure mode
+- **Right**: the correct project pattern
+- **Where**: the file, module, or subsystem where the pattern lives
+
+Keep entries factual and copy-paste friendly. Add new items to the bottom of this file.
+
+---
+
+<!-- Add project-specific learnings below. -->

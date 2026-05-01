@@ -1,0 +1,15 @@
+---
+description: Keep default post-implementation validation focused on relevant code tests.
+alwaysApply: true
+---
+
+# Code Validation Defaults
+
+After code implementation, default to the smallest validation that directly exercises the changed behavior.
+
+- Run focused tests for the code you changed when a suitable test command exists.
+- Prefer file-scoped or package-scoped test commands over full project suites.
+- Use targeted lint/typecheck only when it is the established code test for the touched area or needed to verify the change.
+- Do not automatically run dev servers, production builds, full test suites, broad repo checks, `git diff`, `git status`, `git version`, or dependency commands after normal implementation.
+- Run the full validation suite only when the developer explicitly asks for a full suite, build, dev run, release check, commit/PR preparation, or similar broad verification.
+- If no focused code test is available, say so briefly and report the validation you skipped.

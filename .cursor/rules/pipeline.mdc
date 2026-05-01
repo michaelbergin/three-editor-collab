@@ -1,0 +1,369 @@
+---
+description: Generic #implements pipeline for isolated planning, implementation, validation, and commit handoff.
+alwaysApply: false
+---
+
+# #implements — Generic Implementation Pipeline
+
+When the user's message contains `#implements`, run this pipeline. Parse the request directly; do not ask for a template.
+
+Run the feature through isolated agent roles inside a sibling git worktree. The open workspace branch is the baseline and must not be modified.
+
+---
+
+## Agent Roles
+
+Use four isolated agents, each in its own fresh subagent chat/context window. Do not reuse a subagent chat/context across different roles. Do not share internal reasoning between roles; pass only explicit artifacts.
+
+Run role agents sequentially, not in parallel. Before launching any downstream role, wait for the previous role to finish, read its final output, and confirm the required artifact exists. If a role is accidentally backgrounded, poll its output until it has completed before starting the next role.
+
+When the environment exposes per-agent model selection, use these role assignments:
+
+- Planner: Claude Sonnet 4.6
+- Reviewer: ChatGPT 5.5
+- Coder: Composer 2 Fast
+- Enforcer: ChatGPT 5.5
+
+Model names express the closest intended capability/version, not strict model identifiers. If an exact requested role model is unavailable, use the available model version closest to the requested model family and capability. If explicit subagent model selection exposes only some models, pass an explicit model only when a close match is available; otherwise leave the model unset so the role inherits the parent agent's model. Confirm the final role-to-model selections with the developer before creating the worktree or launching role agents, and include a stop option. Briefly note any closest-match substitutions in the pipeline summary.
+
+### Planner
+
+- Purpose: turn the compact feature description into a micro-step implementation plan.
+- Inputs: feature description, constraints, absolute `worktree_path`, and `<worktree_path>/AGENTS.md`.
+- Boundaries: read-only except writing the plan file; no implementation code, tests, commits, or dependency changes.
+- Output: structured markdown plan with each step's action, files, and behavioral validation criteria.
+
+### Reviewer
+
+- Purpose: adversarially break the plan before implementation by finding edge cases, future bug risks, and weak assumptions.
+- Inputs: full plan text, absolute `worktree_path`, `<worktree_path>/AGENTS.md`, relevant `.cursor/rules` or skills when the plan touches their domain, and the trigger-happy checklist.
+- Review strictly for architecture, reusability, extensibility, clean minimal code, best practices, rule/skill compliance, scope control, and behavioral testability.
+- Boundaries: read-only; critique the plan and proposed architecture, not future code.
+- Output: `PASS` only if no meaningful risk remains, or numbered issues with affected step, edge case/risk, and concrete correction.
+
+### Coder
+
+- Purpose: implement the approved plan.
+- Inputs: approved plan path, original constraints, absolute `worktree_path`, and `<worktree_path>/AGENTS.md`.
+- Boundaries: edit only files/steps approved in the plan; do not expand scope, add dependencies, commit, or run broad validation unless instructed by the pipeline.
+- Output: implementation summary with files changed and any risks or skipped work.
+
+### Enforcer
+
+- Purpose: adversarially break the implementation by testing edge cases, failure modes, and plan-compliance gaps before bugs ship.
+- Inputs: approved plan, current diff, absolute `worktree_path`, `<worktree_path>/AGENTS.md`, relevant `.cursor/rules` or skills for touched domains, and the trigger-happy checklist.
+- Review strictly for architecture, reusability, extensibility, clean minimal code, best practices, rule/skill compliance, and exact plan adherence.
+- Boundaries: may add or update focused tests using existing tools; do not add dependencies without approval or make unrelated refactors.
+- Output: `PASS` only if implementation and validation are robust, or numbered failures with severity, file paths, edge cases, missing coverage, and validation results.
+
+Agents share only explicit artifacts: request summary, constraints, plan text or path, `worktree_path`, and feedback. Resume an existing subagent only when continuing the same role in the same feedback round, such as Planner revising a plan or Coder fixing Enforcer findings. Never resume Planner as Reviewer, Reviewer as Coder, Coder as Enforcer, or any other cross-role handoff. On developer-requested regeneration, start fresh agents.
+
+---
+
+## Step 1: Parse Request
+
+Extract everything after `#implements`:
+
+- Compact feature description; remove filler and unnecessary wording.
+- Constraints: files not to touch, no new dependencies, compatibility needs, design refs, test expectations.
+- Optional branch override: `branch: <name>`.
+
+If no feature description exists, ask for 1-3 sentences before continuing.
+
+Use the `AskQuestion` tool for every developer decision gate that offers fixed choices, including proceed/stop, approve/reject, retry/exit, and proceed-as-is decisions. Do not replace these gates with plain text questions unless the tool is unavailable.
+
+Resolve the effective model selection for each role before creating the worktree. Use `AskQuestion` to show the developer the requested model, selected closest available model, and whether the model will be passed explicitly or inherited from the parent agent. Offer fixed choices to proceed with the selected models or stop the run. If the developer stops, end immediately without creating a worktree, launching agents, or modifying the repo.
+
+---
+
+## Step 2: Prepare Worktree
+
+The pipeline may run from any local branch the developer currently has checked out in the open workspace. There is no allowlist of branch names. The baseline is always the tip of that checkout.
+
+1. Detect the package manager and validation commands from project files:
+
+- Prefer lockfiles and package metadata in the current workspace.
+- Record the package manager, install command, lint command, test command, build command, and typecheck command when they exist.
+- Detect the project test stack:
+  - For frontend JavaScript/TypeScript projects, default to Vitest for unit tests and Testing Library for UI interaction tests. Treat `vitest` plus the relevant Testing Library package such as `@testing-library/react`, `@testing-library/vue`, `@testing-library/svelte`, or `@testing-library/dom` as the expected baseline.
+  - For Python backend projects, default to `pytest`.
+  - If the expected default test stack is absent and changed behavior will need tests, use `AskQuestion` before planning to ask the developer which testing tools to use. Include options to install the default stack, use an existing detected alternative, name another tool, or proceed without adding a test tool only when they explicitly accept the validation risk.
+- Do not add, remove, or upgrade dependencies during setup.
+
+2. Generate:
+
+- `slug`: kebab-case feature summary, max 30 chars, lowercase, no special characters.
+- `run_id`: short timestamp-based id.
+- `branch_name`: `pipeline/<slug>-<run_id>` unless overridden by `branch: <name>`.
+- `worktree_path`: sibling directory `<workspace_parent>/<workspace_name>-<slug>-<run_id>`.
+
+Sanitize branch names so they are valid git branch names. A branch override may be used only before the worktree exists; after worktree creation, the branch name is fixed.
+
+3. Record the current branch:
+
+```bash
+git branch --show-current
+```
+
+Save the result as `base_branch`. If it is empty, stop and tell the developer to check out a named branch before running the pipeline. Do not create a worktree from detached `HEAD`.
+
+4. Run the published-branch gate before any worktree or agent work.
+
+Treat the branch as published only if both commands succeed and the ahead count is `0`:
+
+```bash
+git rev-parse --abbrev-ref '@{upstream}'
+git rev-list --count '@{upstream}..HEAD'
+```
+
+If either check fails, or if the ahead count is not `0`, treat the branch as not published for pipeline purposes.
+
+- If published, continue without an approval question.
+- If not published, use `AskQuestion` with fixed proceed/stop choices. The prompt must explain that the pipeline will create an isolated worktree from the current tip and that the developer must be willing to publish or share this line of work as their workflow requires.
+- If the developer stops, end immediately without creating a worktree, launching agents, or modifying the repo.
+
+5. Check for worktree path conflicts. If `worktree_path` already exists, append an incrementing suffix such as `-2` or `-3` until a free path is found.
+
+6. Create the worktree and pipeline branch from the current `HEAD`:
+
+```bash
+git worktree add -b <branch_name> <worktree_path>
+```
+
+Run this from the main workspace root while `base_branch` is checked out. The original workspace must remain on `base_branch` and unchanged.
+
+Use elevated filesystem permissions only when the command creates or modifies files outside the open workspace root, such as creating the sibling worktree directory.
+
+7. Bootstrap dependencies in the worktree:
+
+- Reuse existing dependency artifacts only when compatible with the detected package manager/linker.
+- Otherwise run the detected package manager's lockfile-safe install command inside the worktree.
+- Add dependencies only when the approved plan requires them or the testing-tool gate selects them, and the developer approves.
+- If the developer selects a testing tool that is not installed, install it in the worktree using the detected package manager or Python environment conventions, then record the install command and resulting test command.
+- If the project has no recognizable package manager or install step, skip dependency bootstrap and note that validation must use the project's documented commands.
+
+8. Save `worktree_path`, `branch_name`, `base_branch`, package manager, and validation commands as pipeline variables.
+
+All subsequent file reads, writes, shell commands, tests, validation, and commits happen inside `worktree_path`. Confirm to the developer that the worktree was created and that the main workspace checkout is untouched.
+
+---
+
+## Step 3: Planning Loop
+
+Run up to three planning rounds.
+
+### Planner
+
+Launch a fresh Planner subagent chat/context with:
+
+- Compact feature description and constraints.
+- Absolute `worktree_path`.
+- Instruction to read `<worktree_path>/AGENTS.md` for architecture rules and project commands.
+- Instruction not to read individual devlog files or any Plan Index table. Historical implementation notes are not planning inputs unless the developer explicitly provides them.
+- Instruction to produce very small micro steps. Prefer more steps over fewer; split any step that touches unrelated concerns.
+- Instruction to design new or changed functions, hooks, and classes as reusable, decoupled units wherever practical, with clear inputs, outputs, side effects, and ownership boundaries.
+- For each step:
+  1. Action: what to change and why.
+  2. Files: which files to create or modify.
+  3. Behavioral acceptance criteria: 1-3 observable outcomes a passing test or validation must assert.
+- Acceptance criteria must describe external behavior, not implementation details. Good examples: "Given a null input, the function returns an empty array"; "Component renders the loading state while data is pending"; "Submitting an empty form does not call the API." Bad examples: "Mock this helper"; "Assert this private function is called"; "The test imports the component"; "It works."
+- Criteria must be specific enough for the Coder to write tests without guessing the intended behavior.
+- For every new or changed testable function, hook, or class, include criteria for its own focused tests covering normal inputs, edge inputs, expected outputs or observable effects, hostile or malformed inputs where relevant, and the absence of unsafe behavior such as injection, unexpected mutation, credential exposure, or hidden business logic.
+- Instruction to write no implementation code.
+
+Write the plan to:
+
+```text
+<worktree_path>/.cursor/plans/<slug>.plan.md
+```
+
+Wait for Planner to finish and read the plan file before launching Reviewer.
+
+### Reviewer
+
+After Planner completes, launch a fresh Reviewer subagent chat/context with:
+
+- Full plan text.
+- Absolute `worktree_path`.
+- Trigger-happy checklist.
+- Instruction to read `<worktree_path>/AGENTS.md`.
+- Instruction not to read individual devlog files or any Plan Index table unless the developer explicitly provided them as context.
+- Lightweight review mode:
+  1. Check scope creep first. Flag files, systems, dependencies, or behavior not required by the user's request.
+  2. Check acceptance criteria quality. Flag vague, missing, duplicate, untestable, or implementation-coupled criteria.
+  3. Check pattern conflicts only where the plan proposes changing an existing pattern or the action is ambiguous.
+- Do not deeply read every file listed by the plan just to confirm it is correct. That detailed verification belongs to the Enforcer after implementation.
+- Scan existing source only when necessary to decide whether a proposed change is gratuitous, conflicts with established patterns, or risks breaking architecture rules.
+- Instruction to return `PASS` or numbered issues.
+
+If review fails, resume Planner with feedback and wait for the revised plan before resuming Reviewer. Repeat this sequentially. After three rounds without `PASS`, use `AskQuestion` to ask the developer whether to approve the plan despite the remaining issues, regenerate planning with new context, or exit.
+
+### Plan Approval
+
+After the Reviewer returns `PASS`, or after the developer chooses to proceed despite unresolved third-round issues, use `AskQuestion` to ask the developer to approve or reject the plan. Include a concise plan summary and fixed options such as approve, reject with feedback, regenerate, or exit. Do not implement until approved.
+
+If rejected, use `AskQuestion` to ask whether to regenerate planning with new context or exit. On exit, remove the worktree and delete the pipeline branch.
+
+### Planning Regeneration
+
+If the developer chooses to regenerate the plan:
+
+- Ask for additional context or constraints as free text.
+- Start a new Planner and a new Reviewer in fresh subagent chats. Do not resume the previous Planner or Reviewer.
+- Pass the original request, original constraints, regeneration feedback, and worktree context to the new Planner.
+- Restart the planning loop from round 1.
+
+---
+
+## Step 4: Implementation Loop
+
+Run up to three implementation/enforcement rounds.
+
+### Coder
+
+Launch a fresh Coder subagent chat/context with:
+
+- Absolute `worktree_path`.
+- Approved plan path.
+- Original constraints.
+- Instruction to read `<worktree_path>/AGENTS.md`.
+- Instruction to implement only approved micro steps.
+- Instruction not to expand scope or add dependencies without approval.
+- Instruction to keep functions, hooks, and classes reusable and decoupled where practical, with simple inputs/outputs and minimal hidden side effects.
+- Instruction to satisfy every behavioral acceptance criterion in the approved plan.
+- Instruction to write focused tests for changed behavior using the selected or detected test framework and conventions. For frontend JavaScript/TypeScript, assume Vitest plus Testing Library are available for unit and UI interaction tests unless the testing-tool gate selected otherwise. For Python backends, assume `pytest` is available unless the testing-tool gate selected otherwise. Co-locate tests when that matches the project; otherwise follow the existing test layout.
+- Instruction to give each new or changed testable function, hook, or class its own test coverage for inputs, expected outputs or observable effects, edge cases, hostile or malformed inputs where relevant, and clean logic invariants. Do not rely only on broad integration coverage when focused unit or component coverage is practical.
+- Instruction to choose test structure, mocks, and helpers independently. The plan's criteria define what must be asserted, not how the tests must be implemented.
+- Instruction to run validation with the detected project commands, not hardcoded package-manager assumptions:
+  1. Get the list of changed files with `git diff --name-only`.
+  2. Identify focused tests related to changed source files when the project has a discoverable test structure.
+  3. Run lint, focused tests, typecheck, and build commands when available. Run independent validation commands in parallel when safe in the current environment; otherwise run them sequentially.
+  4. If no focused tests can be identified for changed behavior, run the broadest practical test command available.
+  5. Fix validation failures before handing off to Enforcer.
+- Instruction to report files changed, tests added or updated, validation commands, results, and any criteria that could not be directly tested.
+
+Wait for Coder to finish, then collect the current worktree diff as the Enforcer input before launching Enforcer.
+
+### Enforcer
+
+After Coder completes, launch a fresh Enforcer subagent chat/context with:
+
+- Absolute `worktree_path`.
+- Approved plan text or path.
+- Current diff and changed-file list.
+- Trigger-happy checklist.
+- Instruction to detect the existing test/lint/build setup.
+- Instruction to add or update focused adversarial tests using selected or detected tools and conventions. For frontend JavaScript/TypeScript, assume Vitest plus Testing Library are available for unit and UI interaction tests unless the testing-tool gate selected otherwise. For Python backends, assume `pytest` is available unless the testing-tool gate selected otherwise.
+- Instruction to run the broadest practical validation available from the project commands.
+- Instruction to verify acceptance-criteria coverage: for every micro step in the approved plan, confirm at least one test assertion or explicit validation result covers each behavioral criterion. Any uncovered criterion is a failure unless the criterion is impossible to test and the limitation is clearly justified.
+- Instruction to verify per-unit coverage: every new or changed testable function, hook, or class must have focused assertions for normal inputs, edge inputs, expected outputs or observable effects, hostile or malformed inputs where relevant, and clean logic invariants. Missing focused coverage is a failure unless the unit is only reachable through a narrow public API and integration tests fully cover the same behavior.
+- Instruction to verify exact plan adherence: changed files and behavior must match the approved plan unless a deviation was necessary and explicitly reported.
+- Instruction to return `PASS` or numbered failures with severity and file paths.
+
+If enforcement fails, resume the coder with the findings and repeat. After three failed rounds, use `AskQuestion` to ask the developer whether to retry with feedback, approve as-is, or exit.
+
+### Implementation Regeneration
+
+If the developer chooses to regenerate implementation:
+
+- Ask for additional implementation guidance as free text.
+- Start a new Coder and a new Enforcer in fresh subagent chats. Do not resume the previous Coder or Enforcer.
+- Keep the approved plan unless the developer explicitly asks to return to planning.
+- Pass the approved plan, original request, original constraints, regeneration feedback, and worktree context to the new Coder.
+- Restart the implementation loop from round 1.
+
+---
+
+## Step 5: Approval and Commit
+
+After enforcement passes or the developer chooses to proceed, summarize:
+
+- Files changed.
+- Tests added or updated.
+- Validation commands and results.
+- Known risks or skipped validation.
+
+Use `AskQuestion` to ask the developer to approve or reject the code.
+
+If approved:
+
+1. Commit from the worktree with a concise message.
+2. Give review, merge, and cleanup instructions.
+
+If rejected, use `AskQuestion` to ask whether to regenerate implementation with feedback or exit. On exit, remove the worktree and delete the branch.
+
+---
+
+## Trigger-Happy Checklist
+
+Reviewer and Enforcer must flag:
+
+- Scope creep beyond the request.
+- Unnecessary refactors.
+- Unnecessary dependencies.
+- Changes to unrelated project areas.
+- New abstractions without clear need.
+- Missing tests or validation for changed behavior.
+- Missing focused tests for new or changed functions, hooks, or classes.
+- Missing adversarial coverage for malformed input, malicious input, injection-like payloads, unexpected mutation, credential exposure, or hidden business logic where relevant.
+- Tightly coupled functions, hooks, or classes that should have been decoupled for reuse or testability.
+- Ignoring `AGENTS.md` or relevant `.cursor/rules`.
+- Implementation not matching the approved plan.
+
+---
+
+## Git Operations vs. AskQuestion Gates
+
+Use `AskQuestion` only for defined developer decision gates:
+
+- Published-branch proceed/stop when the baseline branch is not published.
+- Model-selection proceed/stop before creating the worktree.
+- Plan approval or rejection.
+- Plan rejection action: regenerate or exit.
+- Implementation approval or rejection.
+- Implementation rejection or loop-cap action: regenerate, approve as-is, or exit.
+- Testing-tool selection when the expected default stack is absent: for frontend JavaScript/TypeScript, Vitest plus Testing Library; for Python backends, `pytest`.
+
+Do not use `AskQuestion` as a stand-in for routine operational permission when the command is required by this pipeline and stays in project scope.
+
+Git and filesystem operations do not need an extra approval gate when all of the following are true:
+
+1. The operation only reads or mutates the current workspace repository or the pipeline worktree created in Step 2.
+2. The operation is required by the pipeline lifecycle, such as `git status`, `git diff`, `git worktree add`, `git add`, `git commit` after code approval, `git worktree remove`, or pipeline branch cleanup.
+3. The operation does not touch unrelated repositories, system paths, or arbitrary directories outside the workspace/worktree scope.
+4. The operation does not add, remove, or upgrade dependencies unless the approved plan requires it or the testing-tool gate selects it, and the developer explicitly approved the dependency change.
+5. The operation does not bypass one of the required gates above.
+
+Package-manager install commands are allowed only for lockfile-safe dependency bootstrap in the worktree. Dependency mutation commands require explicit developer approval.
+
+Stop and report the problem in normal text if an operation would write outside the allowed roots, mutate unexpected dependencies, require system-level privileges, or conflict with the pipeline's safety rules.
+
+If this policy changes, update any matching hook policy summaries in the project so documentation and enforcement stay aligned.
+
+---
+
+## Important Rules
+
+- Never ask the developer to fill in a template for `#implements`; parse their message directly.
+- Always confirm effective role model selections with the developer before creating the worktree, and provide a stop option.
+- Always run the published-branch gate before creating a worktree.
+- Always create the worktree before planning or coding begins.
+- Never modify files in the main workspace during the pipeline. All pipeline file changes happen inside `worktree_path`.
+- Always pass the absolute `worktree_path` to every role and instruct the role to use it for file I/O and shell commands.
+- Always run role agents sequentially. Wait for each role to finish and verify its artifact before launching the next role.
+- Never leak internal context between roles. Pass only explicit artifacts such as the request summary, constraints, plan content/path, diff, validation results, and feedback.
+- Resume a role only for feedback within the same loop. On developer-requested regeneration, launch fresh agents for the regenerated phase.
+- Always pause for developer approval after the plan phase. Never proceed to implementation automatically.
+- Always pause for developer approval after the code phase. Never commit automatically.
+- Never commit until the developer explicitly approves the implementation.
+- Never auto-merge the pipeline branch into the baseline branch. The developer controls merge timing.
+- Always use the detected project commands and package manager conventions; do not hardcode one package manager into the generic pipeline.
+- Do not add, remove, or upgrade dependencies unless the approved plan requires it and the developer explicitly approves.
+- On exit or cancellation, remove the worktree and delete the pipeline branch from the main workspace when safe to do so.
+- If cleanup fails, report the exact command and failure so the developer can resolve it manually.
+
+---
+
+## Completion
+
+The pipeline is complete when changes are committed on the pipeline branch in the worktree and the developer has manual merge instructions.
